@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<launch>
+    <node pkg="prob_seek" type="prob_seek.py" name="prob_seek" output="screen"/>
+</launch>

@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<launch>
+    <node pkg="test_behaviours" type="pickup_test.py" name="pickup_test" output="screen"/>
+</launch>
