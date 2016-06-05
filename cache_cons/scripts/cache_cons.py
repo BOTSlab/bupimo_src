@@ -6,11 +6,12 @@ A. Vardy, G. Vorobyev, W. Banzhaf
 Cache Consensus: Rapid Object Sorting by a Robotic Swarm
 Swarm Intelligence, 8 (1), pp. 61-87, 2014.
 
-This algorithm differs from the one described above in the following significant ways:
-
-- The robots cannot remember positions corresponding to cache clusters.  Instead they use a homing procedure (i.e. visual or odometry-based) to 
-but can only estimate the bearing towards the position where the cluster was "visited" (see below).
-- To visit a cluster means to deposit at that cluster, or when an unladen robot sees a large cluster and travels to itjust
+This algorithm differs from the one described above in (at least) the following
+significant ways:
+    1. Using visual homing as opposed to having direct access to positions.
+Assuming we can only obtain the bearing towards remembered locations.
+    2. We cannot really recognize a cluster as the cache cluster or not.  We just home towards the remembered point and deposit whenever we bump into a puck of the right type.  The only other way out of this state (HOMING) would be through a timeout.
+    3. Any visible cluster that is as-large-or-larger than the previous cache cluster will be taken as the new cache cluster (for that type).  But we have to make contact with the cluster before storing the goal image.  So there is a new state called VISIT_NEW_CACHE to achieve this.
 
 Andrew Vardy
 """
@@ -51,6 +52,12 @@ class CacheCons:
         #self.obstacle_array_msg = None
         self.castobstacle_array_msg = None
 
+        # Dictionary of cache sizes with puck type as the key.  An empty entry
+        # means no pucks of that type have yet been seen.  This is all we need
+        # to store here with respect to caches --- the goal images reside in
+        # the provider of the 'set_goal' and the 'get_bearing' services.
+        cache_sizes = {}
+
         # Parameters (move to ROS parameter server?)
         self.PICK_UP_TIME = 100
         self.TARGET_FINAL_TIME = 10
@@ -60,8 +67,7 @@ class CacheCons:
         self.CLUSTER_CONTACT_DISTANCE = 0.12
         self.MIN_TURN_TIME = 5
         self.MAX_TURN_TIME = 10
-        self.K1 = 1.0
-        self.K2 = 2.0
+        
 
         # Publish to 'cmd_vel'
         self.cmd_vel_publisher = rospy.Publisher('cmd_vel', Twist, queue_size=1)
@@ -71,6 +77,12 @@ class CacheCons:
         rospy.Subscriber('zumo_prox', ZumoProximities, self.prox_callback)
         #rospy.Subscriber('obstacles', ObstacleArray, self.obstacles_callback)
         rospy.Subscriber('castobstacles', CastObstacleArray, self.castobstacles_callback)
+
+        # Setup the services necessary for homing.
+        rospy.wait_for_service('set_goal')
+        set_goal = rospy.ServiceProxy('set_goal', SetGoalLocation)
+        rospy.wait_for_service('get_bearing')
+        get_bearing = rospy.ServiceProxy('get_bearing', GetBearingForGoal)
 
         rospy.on_shutdown(self.shutdown_handler)
 
@@ -98,20 +110,6 @@ class CacheCons:
         prob = (self.K1 / (self.K1 + n))**2
         print("Cluster! type: " + str(cluster.type) + ", n: " + str(n) + \
               ", probability of pickup: " + str(prob))
-        accept = (random.random() < prob)
-        print("\taccept: " + str(accept))
-
-        return accept
-            
-    def accept_as_deposit_cluster(self, cluster):
-        """Accept cluster with probability given by cluster size."""
-        if cluster == None:
-            return False
-        n = len(cluster.array.pucks)
-        # Deneubourg et al formula
-        prob = (n / (self.K2 + n))**2
-        print("Cluster! type: " + str(cluster.type) + ", n: " + str(n) + \
-              ", probability of deposit: " + str(prob))
         accept = (random.random() < prob)
         print("\taccept: " + str(accept))
 
@@ -148,11 +146,16 @@ class CacheCons:
 
         self.current_step = cluster_array_msg.header.seq
         time_in_state = self.current_step - self.state_start_step
+        #print(self.state)
 
         ######################################################################
-        # Handle state transitions
+        # Handle transition to VISIT_NEW_CACHE which can happen from any other
+        # state
         ######################################################################
-        #print(self.state)
+
+        ######################################################################
+        # Handle other state transitions
+        ######################################################################
         if self.state == "PU_SCAN":
             if self.puck_in_gripper:
                 if self.carried_type == None:

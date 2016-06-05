@@ -86,6 +86,15 @@ def move_to_puck(puck):
 
     return twist
 
+def move_towards_bearing(bearing):
+    """Generate a twist message that moves us towards the given puck."""
+    twist = Twist()
+    bearing = constrain_angle(bearing)
+    twist.linear.x = FORWARD_SPEED
+    twist.angular.z = ROT_SPEED * (bearing / math.pi)
+    return twist
+
+
 def wander_while_avoiding_castobs(castobstacle_array_msg):
     """Random walk while avoiding cast obstacles."""
 #    global last_wander_angular
