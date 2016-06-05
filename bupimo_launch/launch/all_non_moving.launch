@@ -19,6 +19,16 @@
 
     <node pkg="pucks_to_clusters" type="pucks_to_clusters.py" name="pucks_to_clusters" output="screen"/>
 
+<!--   <node pkg="bubblescope_property_service" type="property_service.py" name="bubblescope_property_service" args="-m -x 612 -y 322 -r 160" output="screen"/>-->
+   <node pkg="bubblescope_property_service" type="property_service.py" name="bubblescope_property_service" args="-m -x 313 -y 162 -r 80" output="screen"/>
+
+    <node pkg="obstacle_detector" type="collision.py" name="obstacle_detector" args="-d" output="screen"/>
+
+<!--    <node pkg="camera_publisher" type="image_publisher.py" name="image_publisher" output="screen"/> -->
+
+<!--    <node pkg="apriltags_ros" type="apriltag_detector" name="apriltag_detector" output="screen"/> -->
+
+<!--    <node pkg="colour_detector" type="colour_detection" name="colour_detector" output="screen"/> -->
 
     <!-- Fake TF for testing -->
     <!--<node pkg="tf" type="static_transform_publisher"

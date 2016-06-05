@@ -1,6 +1,16 @@
 #!/usr/bin/env python
 """
-Implementation of ProbSeek algorithm described in the Cache Consensus paper.
+Implementation of a variant of the Cache Consensus algorithm described in the following paper:
+
+A. Vardy, G. Vorobyev, W. Banzhaf
+Cache Consensus: Rapid Object Sorting by a Robotic Swarm
+Swarm Intelligence, 8 (1), pp. 61-87, 2014.
+
+This algorithm differs from the one described above in the following significant ways:
+
+- The robots cannot remember positions corresponding to cache clusters.  Instead they use a homing procedure (i.e. visual or odometry-based) to 
+but can only estimate the bearing towards the position where the cluster was "visited" (see below).
+- To visit a cluster means to deposit at that cluster, or when an unladen robot sees a large cluster and travels to itjust
 
 Andrew Vardy
 """
@@ -24,10 +34,10 @@ from bupimo_utils.pucks_and_clusters import get_largest_cluster_of_type
 from bupimo_utils.pucks_and_clusters import get_closest_puck_distance
 from bupimo_utils.movements import *
 
-class ProbSeek:
+class CacheCons:
 
     def __init__(self):
-        rospy.init_node('prob_seek')
+        rospy.init_node('cache_cons')
 
         # Initialize variables
         self.state = "PU_SCAN"

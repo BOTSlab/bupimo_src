@@ -10,13 +10,17 @@ import time
 import cv2
 import cv
 import numpy as np
-import rospy
+import rospy, math
 from obstacle_detector.msg import *
 from bubblescope_property_service.srv import *
 
 # TODO: these should come from the parameter server
 img_width = 1296
 img_height = 972
+#img_width = 1296/2
+#img_height = 972/2
+
+TWO_PI = 2 * math.pi
 
 # Transform point on a line to zeroth octant
 # Needed for input to Bresenham line algorithm
@@ -102,13 +106,13 @@ def detect_collision_in_ray(image, theta, p1, p2):
     for idx, val in enumerate(line_grad):
         # This portion of the image is obscured by the robot
         # Pick a point further away to start considering edges
-        if theta > 3.49:
-            if val > 100 and idx > 60 and idx < line_grad.size-10:
-                return line_pos[idx]
-        # The rest of the image has a tighter starting boundary
-        else:
-            if val > 100 and idx > 5 and idx < line_grad.size-10:
-                return line_pos[idx]
+#        if theta > 3.49:
+#            if val > 100 and idx > 60 and idx < line_grad.size-10:
+#                return line_pos[idx]
+#        # The rest of the image has a tighter starting boundary
+#        else:
+        if val > 100 and idx > 5 and idx < line_grad.size-10:
+            return line_pos[idx]
 
 if __name__ == '__main__':
     parser = OptionParser()
@@ -116,7 +120,8 @@ if __name__ == '__main__':
     (options, args) = parser.parse_args()
 
     rospy.init_node('obstacle_detector', anonymous=False)
-    pub = rospy.Publisher('obstacle', ObstacleArray, queue_size=1)
+    pub = rospy.Publisher('castobstacles', CastObstacleArray, queue_size=1)
+    #rospy.on_shutdown(shutdown_handler)
 
     # Fetch bubblescope information from the service
     rospy.wait_for_service('get_bubblescope_properties')
@@ -168,6 +173,24 @@ if __name__ == '__main__':
 
                 if options.debug_on:
                     cv2.circle(image, (x,y), int(inner_rad), (0,255,0), 2)
+                    # AV: Initialize our estimate of the Centre-Of-Mass
+                    com_x = 0
+                    com_y = 0
+                    # AV: Go through and get what the average rho value for
+                    # all cast obstacles would be.
+                    avg_rho = 0
+                    min_rho = float('inf')
+                    for line in lines:
+                        collision_pos = detect_collision_in_ray(image_gray, line[0], (line[1],line[2]), (line[3],line[4]))
+
+                        if collision_pos is not None:
+                            rho = np.sqrt( (collision_pos[0]-x)**2 + (collision_pos[1]-y)**2 )
+                            avg_rho = avg_rho + rho
+                            if rho < min_rho:
+                                min_rho = rho
+                    print("min_rho: " + str(min_rho))
+                    avg_rho /= len(lines)
+                    
 
                 # Iterate over each line and detect edges
                 # detect_collision_in_ray will return the first obstacle encountered on a line
@@ -178,21 +201,44 @@ if __name__ == '__main__':
                     collision_pos = detect_collision_in_ray(image_gray, line[0], (line[1],line[2]), (line[3],line[4]))
 
                     if collision_pos is not None:
-                        obstacle = ObstacleLocation()
-                        obstacle.centre = (x,y)
-                        obstacle.theta = line[0]
-                        obstacle.radius = np.sqrt( (collision_pos[0]-x)**2 + (collision_pos[1]-y)**2 )
+                        obstacle = CastObstacle()
+                        obstacle.theta = TWO_PI - line[0]
+                        obstacle.rho = np.sqrt( (collision_pos[0]-x)**2 + (collision_pos[1]-y)**2 )
+                        # AV: Alternative rho value which is distance to the outer circle
+                        #obstacle.rho = np.sqrt( (collision_pos[0]-line[3])**2 + (collision_pos[1]-line[4])**2 )
+
                         obstacles.append(obstacle)
 
                         if options.debug_on:
-                            cv2.circle(image, collision_pos, 6, (0,0,255), 1)
+                            # Add to our Centre-Of-Mass estimate
+                            if obstacle.rho > avg_rho:
+                                com_x = com_x + math.cos(obstacle.theta)
+                                com_y = com_y + math.sin(obstacle.theta)
+                            #elif obstacle.rho < avg_rho:
+                            #    com_x = com_x - math.cos(obstacle.theta)
+                            #    com_y = com_y - math.sin(obstacle.theta)
+                            #com_x = com_x + obstacle.rho * math.cos(obstacle.theta)
+                            #com_y = com_y + obstacle.rho * math.sin(obstacle.theta)
+
+                            if obstacle.rho == min_rho:
+                                cv2.circle(image, collision_pos, 5, (0,0,255), -1)
+                            elif obstacle.rho > avg_rho:
+                                cv2.circle(image, collision_pos, 5, (0,255,0), -1)
+                            else:
+                                cv2.circle(image, collision_pos, 5, (0,0,0), 1)
 
                 # Publish array of detected obstacles for others to have fun with
-                msg = ObstacleArray()
+                msg = CastObstacleArray()
                 msg.obstacles = obstacles
                 pub.publish(msg)
 
                 if options.debug_on:
+                    # Show a line indicating the direction of the Centre-Of-Mass
+                    com_angle = math.atan2(com_y, com_x)
+                    com_draw_x = x + int(200*math.cos(com_angle))
+                    com_draw_y = y - int(200*math.sin(com_angle))
+                    cv2.line(image, (x, y), (com_draw_x, com_draw_y), (255, 0, 0), 10)
+
                     cv2.imshow("DEBUG", image)
                     key = cv2.waitKey(1) & 0xFF
 
@@ -200,3 +246,6 @@ if __name__ == '__main__':
                         break
 
                 raw_capture.truncate(0)
+
+                if rospy.is_shutdown():
+                    break

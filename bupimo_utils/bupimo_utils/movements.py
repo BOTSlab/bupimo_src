@@ -6,9 +6,12 @@ from geometry_msgs.msg import Twist
 from bupimo_utils.math_utils import sign
 from bupimo_utils.pucks_and_clusters import get_closest_puck
 from bupimo_utils.obstacles import get_closest_obstacle
+from bupimo_utils.angles import constrain_angle
 
 FORWARD_SPEED = 0.25
 ROT_SPEED = 5.0
+
+PI_OVER_2 = math.pi / 2.0
 
 # This is the one little bit of internal state in this module which is used
 # in 'wander_while_avoiding'.
@@ -47,8 +50,7 @@ def wander_while_avoiding(obs_or_puck):
         last_wander_angular = twist.angular.z
     return twist
 
-def wander_while_avoiding_obs_pucks(obstacle_array_msg, cluster_array_msg, \
-                                    last_twist):
+def wander_while_avoiding_obs_pucks(obstacle_array_msg, cluster_array_msg):
     """Random walk while avoiding both obstacles and pucks.  If either or both
     arguments are None then they will be ignored."""
 
@@ -81,5 +83,53 @@ def move_to_puck(puck):
     if puck != None:
         twist.linear.x = FORWARD_SPEED #0.5# + 1.0 * puck.position.x
         twist.angular.z = 20.0 * puck.position.y
+
+    return twist
+
+def wander_while_avoiding_castobs(castobstacle_array_msg):
+    """Random walk while avoiding cast obstacles."""
+#    global last_wander_angular
+
+    if castobstacle_array_msg == None:
+        # The message has probably just not been published yet, go forwards
+        return forwards()
+
+    # First get the closest cast obstacle.  We will turn away from this if
+    # it is too close.
+    closest_obs = None
+    closest_rho = float('inf')
+    for obs in castobstacle_array_msg.obstacles:
+        if obs.rho < closest_rho:
+            closest_obs = obs
+            closest_rho = obs.rho
+    if closest_obs != None:
+        closest_theta = constrain_angle(closest_obs.theta)
+    
+
+    # For each cast obstacle we will specify a vector whose length is given by
+    # the 'rho' value.  We then sum all of these up and try and move in this
+    # direction.
+#    vx = 0
+#    vy = 0
+#    for obs in castobstacle_array_msg.obstacles:
+#        vx = vx + obs.rho**2 * math.cos(obs.theta)
+#        vy = vy + obs.rho**2 * math.sin(obs.theta)
+#    desired_angle = math.atan2(vy, vx)
+
+    twist = Twist()
+    threshold = 105
+    if closest_rho < threshold and closest_theta > 0 and closest_theta < PI_OVER_2:
+        # Turn right to avoid
+        twist.linear.x = 0.5 * FORWARD_SPEED
+        twist.angular.z = -ROT_SPEED
+#        last_wander_angular = 0
+    elif closest_rho < threshold and closest_theta < 0 and closest_theta > -PI_OVER_2:
+        # Turn left to avoid
+        twist.linear.x = 0.5 * FORWARD_SPEED
+        twist.angular.z = ROT_SPEED
+#        last_wander_angular = 0
+    else:
+        # The way is clear.  
+        twist.linear.x = FORWARD_SPEED
 
     return twist
