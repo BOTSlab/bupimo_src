@@ -3,13 +3,15 @@
 import cv2
 import time
 import rospy
-import picamera
+#import picamera
 import numpy as np
 
 from math import atan2, sin, cos, degrees, pi
 from picamera.array import PiRGBArray
+from picamera import PiCamera
 from optparse import OptionParser
 from bubblescope_property_service.srv import *
+from scale_space_homing_service.srv import *
 
 #Threshold for scale change to use a point for homing, if 0 any change in scale is used
 scaleDiffThresh = 0
@@ -32,11 +34,10 @@ surf = cv2.SURF(surfHessianThresh)
 nGoalLocations = 8
 goalLocationInformation = [([0],[0])]*nGoalLocations
 
-roiCenter = (0,0)
-
+#roiCenter = (0,0)
 debug = False
 
-mask = [0]
+mask = np.zeros((yRes,xRes),np.uint8)
 
 #define the thickness (in pixels) of the ring used for masking the above horizon KP search space
 maskRingWidth = 80
@@ -49,33 +50,42 @@ outterLensBufferPixels = 10
 
 def handle_get_bearing_for_goal(req):
     goalId = req.goalId
+
+    res = GetBearingForGoalResponse()
+    res.bearing = 0;
+
     if goalId in range(0,nGoalLocations):
         kpGoal, desGoal = goalLocationInformation[goalId]
         kpCurr, desCurr = get_kp_and_des_at_current_location()
 
-        return findHomingAngle(kpCurr, desCurr, kpGoal, desGoal)
+        res.bearing =  findHomingAngle(kpCurr, desCurr, kpGoal, desGoal)
 
-    #if goalId is outside range return 0, meaning straight ahead
-    return 0
+    print "GOT BEARING:", res.bearing
+    return res
 
 def handle_set_goal_location(req):
     goalId = req.goalId
+    res = SetGoalLocationResponse()
+
     if goalId in range(0,nGoalLocations):        
         goalLocationInformation[goalId] = get_kp_and_des_at_current_location()
 
+    return res
+
 def get_kp_and_des_at_current_location():
     imageGoal = get_image()
-
+    global mask
+    print mask.shape    
     imgGray = cv2.cvtColor(imageGoal, cv2.COLOR_BGR2GRAY)
+    print imgGray.shape
     return surf.detectAndCompute(imgGray, mask)
 
 #TODO: this might be a bad idea, should maybe just instantiate the camera once
 #if so i'm not sure how to ensure the connection is properly close...damn python
 def get_image():
-    with picamera.PiCamera as picamera:
+    with PiCamera() as camera:
         rawCapture = PiRGBArray(camera)
         camera.resolution = (xRes,yRes)
-        time.sleep(1)
 
         camera.capture(rawCapture, format="bgr")
         image = rawCapture.array
@@ -85,14 +95,16 @@ def get_image():
 def generateMask(roiCenter, outterRadius):
 
     #Leave a small buffer of pixels around the edge of the lens so as to not include the lens itself anywhere
-    outterRadius = outterRadius - outterLensBufferPixels
-    innerRadius = outterRadius - maskRingWidth    
+    global mask
 
-    mask = np.zeros((xRes,yRes), np.uint8)
+    outterRadius = outterRadius - outterLensBufferPixels
+    innerRadius = outterRadius - 180    
+
+    mask = np.zeros((yRes,xRes), np.uint8)
     cv2.circle(mask, roiCenter, outterRadius,1,-1)
     cv2.circle(mask, roiCenter, innerRadius,0,-1)
 
-    return mask
+    #return mask
 
 #based on the number and direction of the contraction and expansion angles, calculate the final weighted homing direction
 def calcHomingAngle(contractionAngles, expansionAngles):
@@ -189,11 +201,12 @@ if __name__ == '__main__':
     #global debug
     #debug = debug_on
 
+    global roiCenter
+
     rospy.init_node('scale_space_homing_service')
     s = rospy.Service('get_bearing_for_goal', GetBearingForGoal, handle_get_bearing_for_goal)
     t = rospy.Service('set_goal_location', SetGoalLocation, handle_set_goal_location)
 
-    global roiCenter
 
     # Fetch bubblescope information from the service
     rospy.wait_for_service('get_bubblescope_properties')
@@ -203,12 +216,11 @@ if __name__ == '__main__':
     
 
     if res is not None:
+
         roiCenter = (int(res.center[0]), int(res.center[1]))
         outterRad = res.outer_radius
 
         #Generate and save the mask to be applied when finding keypoints
-        global mask
-        mask = generateMask(roiCenter, outterRad)
-
+        generateMask(roiCenter, int(outterRad))
 
     rospy.spin()

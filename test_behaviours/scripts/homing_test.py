@@ -22,11 +22,11 @@ def clusters_callback(cluster_array_msg):
     # Get the bearing to the goal location
     try:
         response = get_bearing(0)
-    except rospy.ServiceException as excep
+    except rospy.ServiceException as excep:
         print("Service problem: " + str(excep))
 
     # Move towards the bearing found
-    twist = move_towards_bearing(response.bearing):
+    twist = move_towards_bearing(response.bearing)
 
     cmd_vel_publisher.publish(twist)
         
@@ -39,7 +39,7 @@ if __name__ == '__main__':
     set_goal = rospy.ServiceProxy('set_goal_location', SetGoalLocation)
     try:
         ignored_response = set_goal(0)
-    except rospy.ServiceException as excep
+    except rospy.ServiceException as excep:
         print("Service problem: " + str(excep))
 
     # Wait for the 'get_bearing' service which will be called within
