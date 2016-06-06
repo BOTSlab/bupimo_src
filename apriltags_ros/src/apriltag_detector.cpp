@@ -56,6 +56,9 @@ void imageCallback(const sensor_msgs::ImageConstPtr &image) {
         // of the tag.  Area would be a more obvious measure, but that would
         // be more sensitive to changes in orientation (as opposed to just
         // distance which is what we want to measure).
+
+/** AV: WAS WORKING ON THIS PRIOR TO DAILY PLANET DEMO BUT DECIDED TO FOCUS ON
+ *  VISUAL HOMING WITH "NATURAL" FEATURES.
         std::pair<float, float> *p = &(detections[i].p);
         float s1 = sqrt(pow((p[1].first - p[0].first), 2) +
                         pow((p[1].second - p[0].second), 2));
@@ -73,6 +76,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr &image) {
             tag_detection.max_side_length = s3;
         else
             tag_detection.max_side_length = s4;
+*/
 
         // Distance in pixels from the image centre.  Not meaningful as a
         // spatial distance, but potentially useful as a measure of apparent
@@ -88,10 +92,12 @@ void imageCallback(const sensor_msgs::ImageConstPtr &image) {
 
 	}
 
+/*
     if (debug)
         for (int i = 0; i < detections.size(); i++)
             detections[i].draw(image_gray);
         cv::waitKey(10);
+*/
 
 	detections_pub.publish(tag_detection_array);
 }

@@ -142,7 +142,7 @@ class ProbSeek:
         ######################################################################
         # Handle state transitions
         ######################################################################
-        #print(self.state)
+        print("state: " + self.state + ", time_in_state: " + str(time_in_state))
         if self.state == "PU_SCAN":
             if self.puck_in_gripper:
                 if self.carried_type == None:
@@ -178,12 +178,12 @@ class ProbSeek:
                 if self.target_puck == None:
                     self.transition("PU_TARGET_FINAL", \
                                "Target puck invisible, but almost in")
-                elif time_in_state > self.TARGET_FINAL_TIME:
-                    self.transition("PU_SCAN", "Time out")
 
         elif self.state == "PU_TARGET_FINAL":
             if self.puck_in_gripper:
                 self.transition("DE_SCAN", "Pick-up succeeded")
+            elif time_in_state > self.TARGET_FINAL_TIME:
+                self.transition("PU_SCAN", "Time out")
                 
         elif self.state == "DE_SCAN":
 #            if not self.puck_in_gripper:
@@ -207,7 +207,7 @@ class ProbSeek:
                 closest_puck = get_closest_puck(cluster_array_msg)
                 if closest_puck.type != self.carried_type:
                     self.transition("DE_SCAN", "Closest puck not right type")
-                elif: get_puck_distance(closest_puck) < \
+                elif get_puck_distance(closest_puck) < \
                                                 self.CLUSTER_CONTACT_DISTANCE:
                     self.transition("DE_PUSH", "Contacted cluster")
                 else:

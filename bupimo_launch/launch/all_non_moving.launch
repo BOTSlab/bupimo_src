@@ -8,6 +8,11 @@
     <!-- 2 times puck diameter (6.3cm) -->
     <param name = "cluster_distance_threshold" value="0.126"/>
 
+    <!-- The following loads parameters which may need to be customized for
+         each robot.  Hence, they are placed in an external file:
+         /home/pi/robot_params.yaml -->
+    <rosparam command="load" file="/home/pi/robot_params.yaml" />
+
 	<node name="pixy_node" pkg="pixy_node" type="pixy_node" output="screen">
 		<param name="use_servos" value="false" />
 		<param name="rate" value="10.0" />
@@ -19,10 +24,10 @@
 
     <node pkg="pucks_to_clusters" type="pucks_to_clusters.py" name="pucks_to_clusters" output="screen"/>
 
-    <node pkg="bubblescope_property_service" type="property_service.py" name="bubblescope_property_service" args="-m -x 620 -y 480 -r 160" output="screen"/>
+<!--    <node pkg="bubblescope_property_service" type="property_service.py" name="bubblescope_property_service" args="-m -x 620 -y 480 -r 160" output="screen"/>-->
  <!--  <node pkg="bubblescope_property_service" type="property_service.py" name="bubblescope_property_service" args="" output="screen"/>-->
 
-    <node pkg="obstacle_detector" type="collision.py" name="obstacle_detector" args="-d" output="screen"/>
+    <node pkg="obstacle_detector" type="collision.py" name="obstacle_detector" args="" output="screen"/>
 
 <!--    <node pkg="camera_publisher" type="image_publisher.py" name="image_publisher" output="screen"/> -->
 

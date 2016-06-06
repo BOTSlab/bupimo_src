@@ -62,15 +62,17 @@ class serial_comms_node(object):
             words = line.split(" ")
             #print("words: ")
             #print(words)
-            if words[0] == "STATUS:":
-                # Its a status message.  Publish as is.
-                self.statusPublisher.publish(line)
-            elif len(line) > 0:
+            if len(line) > 0:
                 # Its a proximities message.
                 prox_msg = ZumoProximities()
-                prox_msg.front = int(words[0])
-                prox_msg.left = int(words[1])
-                prox_msg.right = int(words[2])
+                try:
+                    prox_msg.front = int(words[0])
+                    prox_msg.left = int(words[1])
+                    prox_msg.right = int(words[2])
+                except: # Catch all 
+                    exception = sys.exc_info()[0]
+                    print("Exception in serial_comms_node: " + str(exception))
+
                 self.proxPublisher.publish(prox_msg)
 		
         # AV: Switching to controlling the robot via a Twist message
@@ -130,7 +132,6 @@ class serial_comms_node(object):
 		# rospy.Subscriber("wheelSpeeds", String, self.TransmitWheelSpeeds)
 		rospy.Subscriber("cmd_vel", Twist, self.TwistCallback)
     
-		self.statusPublisher = rospy.Publisher('zumo_status', String, queue_size = 1)
 		self.proxPublisher = rospy.Publisher('zumo_prox', ZumoProximities, queue_size = 1)
 
 		# CREATE A SERIAL_DATA_GATEWAY OBJECT 
