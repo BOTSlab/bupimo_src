@@ -67,7 +67,6 @@ class CacheCons:
         self.CLUSTER_CONTACT_DISTANCE = 0.12
         self.MIN_TURN_TIME = 5
         self.MAX_TURN_TIME = 10
-        
 
         # Publish to 'cmd_vel'
         self.cmd_vel_publisher = rospy.Publisher('cmd_vel', Twist, queue_size=1)
@@ -80,9 +79,10 @@ class CacheCons:
 
         # Setup the services necessary for homing.
         rospy.wait_for_service('set_goal')
-        set_goal = rospy.ServiceProxy('set_goal', SetGoalLocation)
+        set_goal = rospy.ServiceProxy('set_goal_location', SetGoalLocation)
         rospy.wait_for_service('get_bearing')
-        get_bearing = rospy.ServiceProxy('get_bearing', GetBearingForGoal)
+        get_bearing = rospy.ServiceProxy('get_bearing_for_goal', \
+                                         GetBearingForGoal)
 
         rospy.on_shutdown(self.shutdown_handler)
 
