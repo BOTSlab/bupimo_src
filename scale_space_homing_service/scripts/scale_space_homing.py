@@ -5,15 +5,6 @@ import numpy as np
 import bubblescope_analysis as bsa
 
 from math import atan2, sin, cos, degrees, pi
-from picamera.array import PiRGBArray
-from picamera import PiCamera
-from optparse import OptionParser
-
-from sensor_msgs.msg import Image
-from std_msgs.msg import Float32
-
-from bubblescope_property_service.srv import *
-from scale_space_homing_service.srv import *
 
 
 #Threshold for scale change to use a point for homing, if 0 any change in scale is used
@@ -125,10 +116,12 @@ def get_kp_and_des_at_current_location(image):
     #print imgGray.shape
     return surf.detectAndCompute(imgGray, mask)
 
-def generateMask(roiCenter, outerRadius):
+def generateMask(center, outerRadius):
 
     #Leave a small buffer of pixels around the edge of the lens so as to not include the lens itself anywhere
     global mask
+    global roiCenter
+    roiCenter = center
 
     outerRadius = outerRadius - outerLensBufferPixels
     innerRadius = outerRadius - 80    

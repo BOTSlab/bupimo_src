@@ -22,15 +22,17 @@ from scale_space_homing_service.srv import *
 xRes = 1296
 yRes = 972
 
+isFindingBearing = False
+
 
 
 def handle_get_bearing_for_goal(req):
 	#TODO: call the proper method in scale_space_homing
-
+	isFindingBearing = True
 	goalId = req.goalId
     res = GetBearingForGoalResponse()
     res.bearing = ss.get_bearing_for_goal(image, goalId)
-
+    isFindingBearing = False
     return res
 
 def handle_set_goal_location(req):
@@ -68,15 +70,15 @@ if __name__ == '__main__':
         #Generate and save the mask to be applied when finding keypoints
         ss.generateMask(roiCenter, int(outerRad))
 
-        lines = generate_collision_lines(roiCenter, innerRadius, outerRadius)
+        collision.generate_collision_lines(roiCenter, innerRadius, outerRadius)
 
 
     with PiCamera() as camera:
-            camera.resolution = (img_width,img_height)
-            camera.ISO = 100
-            camera.sa = 100
-            camera.awb = "flash"
-            camera.co = 100
+            camera.resolution = (xRes,yRes)
+            #camera.ISO = 100
+            #camera.sa = 100
+            #camera.awb = "flash"
+            #camera.co = 100
 
             raw_capture = PiRGBArray(camera)
 
@@ -84,9 +86,15 @@ if __name__ == '__main__':
 
             for frame in camera.capture_continuous(raw_capture, format="bgr", use_video_port=True):
             	global image
-                image = frame.array
-                #image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                image = cv2.cvtColor(frame.array, cv2.COLOR_BGR2GRAY)
 
+            	#don't do this while there is a pending homing calculation
+                if isFindingBearing == False:
+                	
+                	# Publish array of detected obstacles for others to have fun with
+				    msg = CastObstacleArray()
+				    msg.obstacles = collision.find_obstacles_on_all_lines(image)
+				    castObsPub.publish(msg)
                 
 
     rospy.spin()
