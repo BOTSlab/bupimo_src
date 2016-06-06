@@ -3,15 +3,21 @@
 import cv2
 import time
 import rospy
-#import picamera
 import numpy as np
 
 from math import atan2, sin, cos, degrees, pi
 from picamera.array import PiRGBArray
 from picamera import PiCamera
 from optparse import OptionParser
+
+from sensor_msgs.msg import Image
+from std_msgs.msg import Float32
+
 from bubblescope_property_service.srv import *
 from scale_space_homing_service.srv import *
+
+from cv_bridge import CvBridge
+
 
 #Threshold for scale change to use a point for homing, if 0 any change in scale is used
 scaleDiffThresh = 0
@@ -46,21 +52,26 @@ maskRingWidth = 80
 #This is to help not include the lens edge KPs in the images
 outterLensBufferPixels = 10
 
+bridge = CvBridge()
+
+goalSet = False
 
 
 def handle_get_bearing_for_goal(req):
+    #TODO: FIX THIS TO BE SET BY A CALL TO THE SERVICE
     goalId = req.goalId
-
     res = GetBearingForGoalResponse()
-    res.bearing = 0;
+    res.bearing = 0
 
     if goalId in range(0,nGoalLocations):
         kpGoal, desGoal = goalLocationInformation[goalId]
         kpCurr, desCurr = get_kp_and_des_at_current_location()
 
-        res.bearing =  findHomingAngle(kpCurr, desCurr, kpGoal, desGoal)
+        bearing =  findHomingAngle(kpCurr, desCurr, kpGoal, desGoal)
 
-    print "GOT BEARING:", res.bearing
+    print "GOT BEARING:", bearing
+    bearingPub.publish(bearing)
+
     return res
 
 def handle_set_goal_location(req):
@@ -69,6 +80,23 @@ def handle_set_goal_location(req):
 
     if goalId in range(0,nGoalLocations):        
         goalLocationInformation[goalId] = get_kp_and_des_at_current_location()
+
+    #Just for testing, remove this
+    kps,des = goalLocationInformation[goalId]
+    image = get_image()
+    #imgColor = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+    for kp in kps:
+        x, y = kp.pt
+        cv2.circle(image, (int(x),int(y)),2, (0,255,0))
+        #cv2.drawKeypoints(image,kp)
+        #cv2.imshow("KPs", image)
+
+    cv2.imshow("KPs", image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+    global goalSet
+    goalSet = True
 
     return res
 
@@ -98,7 +126,7 @@ def generateMask(roiCenter, outterRadius):
     global mask
 
     outterRadius = outterRadius - outterLensBufferPixels
-    innerRadius = outterRadius - 180    
+    innerRadius = outterRadius - 80    
 
     mask = np.zeros((yRes,xRes), np.uint8)
     cv2.circle(mask, roiCenter, outterRadius,1,-1)
@@ -154,15 +182,15 @@ def sortMatches(knnmatches, kpCurr, kpGoal):
             rads = atan2(roiCenter[1]-currkpCurr.pt[1],currkpCurr.pt[0]-roiCenter[0])
             if rads < 0:
                 rads=rads + (2*pi)
-            	#print "kpCurr sise",currkpCurr.size
-            	#print "kpGoal size",currkpGoal.size
+            	print "kpCurr sise",currkpCurr.size
+            	print "kpGoal size",currkpGoal.size
             if currkpCurr.size > (currkpGoal.size + scaleDiffThresh):
                 contractionMatches.append(m)
-                #print "contractionAngle: ",rads
+                print "contractionAngle: ",rads
                 contractionAngles.append(rads)
             elif currkpCurr.size < (currkpGoal.size - scaleDiffThresh):
                 expansionMatches.append(m)
-                #print "expansionAngle: ",rads
+                print "expansionAngle: ",rads
                 expansionAngles.append(rads)
 
     return contractionMatches, expansionMatches, contractionAngles, expansionAngles
@@ -175,20 +203,20 @@ def findHomingAngle(kpCurr, desCurr, kpGoal, desGoal):
 
 	contractionMatches, expansionMatches, contractionAngles, expansionAngles = sortMatches(matches, kpCurr, kpGoal)
 
-    	if debug:
-    		print "Total number of Matches: "+str(len(matches))
-    		print "Total number of \'good\' Matches: "+str(len(contractionMatches)+len(expansionMatches))
-    		print "contractionMatches size: " +str(len(contractionMatches))
-    		print "expansionMatches size: "+str(len(expansionMatches))
+#    	if debug:
+#            print "Total number of Matches: "+str(len(matches))
+#            print "Total number of \'good\' Matches: "+str(len(contractionMatches)+len(expansionMatches))
+#	    print "contractionMatches size: " +str(len(contractionMatches))
+#	    print "expansionMatches size: "+str(len(expansionMatches))
 
 	homingAngle = calcHomingAngle(contractionAngles, expansionAngles)
 
 	
-    	if debug:
-        	homingAngleDegrees = degrees(homingAngle)
-    		if homingAngleDegrees < 0:
-        		homingAngleDegrees += 360
-	   	print "Homing Direction (degrees): ",homingAngleDegrees
+#    	if debug:
+       	homingAngleDegrees = degrees(homingAngle)
+	if homingAngleDegrees < 0:
+       		homingAngleDegrees += 360
+   	print "Homing Direction (degrees): ",homingAngleDegrees
 
 	return homingAngle
 
@@ -207,6 +235,8 @@ if __name__ == '__main__':
     s = rospy.Service('get_bearing_for_goal', GetBearingForGoal, handle_get_bearing_for_goal)
     t = rospy.Service('set_goal_location', SetGoalLocation, handle_set_goal_location)
 
+    global bearingPub
+    bearingPub = rospy.Publisher("bearing", Float32, queue_size=1)
 
     # Fetch bubblescope information from the service
     rospy.wait_for_service('get_bubblescope_properties')
