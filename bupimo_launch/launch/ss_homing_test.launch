@@ -18,11 +18,11 @@
     </node>
 
     <node pkg="pucks_to_clusters" type="pucks_to_clusters.py" name="pucks_to_clusters" output="screen"/>
-
-    <node pkg="bubblescope_property_service" type="property_service.py" name="bubblescope_property_service" args="-m -x 620 -y 480 -r 160" output="screen"/>
+    <!-- RPI #4 Below --->
+    <node pkg="bubblescope_property_service" type="property_service.py" name="bubblescope_property_service" args="-m -x 620 -y 482 -r 191" output="screen"/>
  <!--  <node pkg="bubblescope_property_service" type="property_service.py" name="bubblescope_property_service" args="" output="screen"/>-->
 
-    <node pkg="obstacle_detector" type="collision.py" name="obstacle_detector" args="-d" output="screen"/>
+<!--    <node pkg="obstacle_detector" type="collision.py" name="obstacle_detector" args="-d" output="screen"/> -->
 
 <!--    <node pkg="camera_publisher" type="image_publisher.py" name="image_publisher" output="screen"/> -->
 
