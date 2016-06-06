@@ -191,14 +191,18 @@ class ProbSeek:
 #            else:
 # INDENT REST OF BLOCK IF ABOVE UNCOMMENTED
             #print("DE_SCAN: carried type: " + str(self.carried_type))
-            largest_clust = get_largest_cluster_of_type(cluster_array_msg,
-                                                        self.carried_type)
-            # Accept this as the deposit cluster with some chance
-            accept = self.accept_as_deposit_cluster(largest_clust)
-            if accept:
-                self.target_puck = get_closest_puck_in_cluster(largest_clust)
-                if self.target_puck != None:
-                    self.transition("DE_TARGET", "Deposit target acquired")
+            if get_puck_distance(closest_puck) < \
+                                            self.CLUSTER_CONTACT_DISTANCE:
+                self.transition("DE_PUSH", "Non-targeted cluster --- Ok!")
+            else:
+                largest_clst = get_largest_cluster_of_type(cluster_array_msg,
+                                                            self.carried_type)
+                # Accept this as the deposit cluster with some chance
+                accept = self.accept_as_deposit_cluster(largest_clst)
+                if accept:
+                    self.target_puck = get_closest_puck_in_cluster(largest_clst)
+                    if self.target_puck != None:
+                        self.transition("DE_TARGET", "Deposit target acquired")
 
         elif self.state == "DE_TARGET":
             if not self.puck_in_gripper:
