@@ -191,7 +191,7 @@ class ProbSeek:
 #            else:
 # INDENT REST OF BLOCK IF ABOVE UNCOMMENTED
             #print("DE_SCAN: carried type: " + str(self.carried_type))
-            if get_puck_distance(closest_puck) < \
+            if get_closest_puck_distance(cluster_array_msg) < \
                                             self.CLUSTER_CONTACT_DISTANCE:
                 self.transition("DE_PUSH", "Non-targeted cluster --- Ok!")
             else:
