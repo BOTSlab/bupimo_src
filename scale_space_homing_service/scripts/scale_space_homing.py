@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 
 import cv2
-import time
-import rospy
 import numpy as np
+import bubblescope_analysis as bsa
 
 from math import atan2, sin, cos, degrees, pi
 from picamera.array import PiRGBArray
@@ -15,8 +14,6 @@ from std_msgs.msg import Float32
 
 from bubblescope_property_service.srv import *
 from scale_space_homing_service.srv import *
-
-from cv_bridge import CvBridge
 
 
 #Threshold for scale change to use a point for homing, if 0 any change in scale is used
@@ -40,50 +37,76 @@ surf = cv2.SURF(surfHessianThresh)
 nGoalLocations = 8
 goalLocationInformation = [([0],[0])]*nGoalLocations
 
-#roiCenter = (0,0)
 debug = False
 
-mask = np.zeros((yRes,xRes),np.uint8)
+mask = np.zeros((bsa.yRes,bsa.xRes),np.uint8)
 
 #define the thickness (in pixels) of the ring used for masking the above horizon KP search space
 maskRingWidth = 80
 
 #Amount of pixels to ignore on the outeer ring of the image
 #This is to help not include the lens edge KPs in the images
-outterLensBufferPixels = 10
-
-bridge = CvBridge()
-
-goalSet = False
+outerLensBufferPixels = 10
 
 
-def handle_get_bearing_for_goal(req):
-    #TODO: FIX THIS TO BE SET BY A CALL TO THE SERVICE
-    goalId = req.goalId
-    res = GetBearingForGoalResponse()
-    res.bearing = 0
+
+# def handle_get_bearing_for_goal(req):
+#     #TODO: FIX THIS TO BE SET BY A CALL TO THE SERVICE
+#     goalId = req.goalId
+#     res = GetBearingForGoalResponse()
+#     res.bearing = 0
+
+#     if goalId in range(0,nGoalLocations):
+#         kpGoal, desGoal = goalLocationInformation[goalId]
+#         kpCurr, desCurr = get_kp_and_des_at_current_location()
+
+#         bearing =  findHomingAngle(kpCurr, desCurr, kpGoal, desGoal)
+
+#     print "GOT BEARING:", bearing
+#     bearingPub.publish(bearing)
+
+#     return res
+
+def get_bearing_for_goal(image, goalId):
+    bearing = 0
 
     if goalId in range(0,nGoalLocations):
         kpGoal, desGoal = goalLocationInformation[goalId]
-        kpCurr, desCurr = get_kp_and_des_at_current_location()
+        kpCurr, desCurr = get_kp_and_des_at_current_location(image)
 
         bearing =  findHomingAngle(kpCurr, desCurr, kpGoal, desGoal)
+    return bearing
 
-    print "GOT BEARING:", bearing
-    bearingPub.publish(bearing)
 
-    return res
+# def handle_set_goal_location(req):
+#     goalId = req.goalId
+#     res = SetGoalLocationResponse()
 
-def handle_set_goal_location(req):
-    goalId = req.goalId
-    res = SetGoalLocationResponse()
+#     if goalId in range(0,nGoalLocations):        
+#         goalLocationInformation[goalId] = get_kp_and_des_at_current_location()
 
+#     #Just for testing, remove this
+#     kps,des = goalLocationInformation[goalId]
+#     image = get_image()
+#     #imgColor = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+#     for kp in kps:
+#         x, y = kp.pt
+#         cv2.circle(image, (int(x),int(y)),2, (0,255,0))
+#         #cv2.drawKeypoints(image,kp)
+#         #cv2.imshow("KPs", image)
+
+#     cv2.imshow("KPs", image)
+#     cv2.waitKey(0)
+#     cv2.destroyAllWindows()
+
+    # return res
+
+def set_goal_location(image, goalId):
     if goalId in range(0,nGoalLocations):        
-        goalLocationInformation[goalId] = get_kp_and_des_at_current_location()
+        goalLocationInformation[goalId] = get_kp_and_des_at_current_location(image)
 
     #Just for testing, remove this
     kps,des = goalLocationInformation[goalId]
-    image = get_image()
     #imgColor = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
     for kp in kps:
         x, y = kp.pt
@@ -95,41 +118,23 @@ def handle_set_goal_location(req):
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
-    global goalSet
-    goalSet = True
-
-    return res
-
-def get_kp_and_des_at_current_location():
-    imageGoal = get_image()
+def get_kp_and_des_at_current_location(image):
     global mask
-    print mask.shape    
+    #print mask.shape    
     imgGray = cv2.cvtColor(imageGoal, cv2.COLOR_BGR2GRAY)
-    print imgGray.shape
+    #print imgGray.shape
     return surf.detectAndCompute(imgGray, mask)
 
-#TODO: this might be a bad idea, should maybe just instantiate the camera once
-#if so i'm not sure how to ensure the connection is properly close...damn python
-def get_image():
-    with PiCamera() as camera:
-        rawCapture = PiRGBArray(camera)
-        camera.resolution = (xRes,yRes)
-
-        camera.capture(rawCapture, format="bgr")
-        image = rawCapture.array
-
-        return image
-
-def generateMask(roiCenter, outterRadius):
+def generateMask(roiCenter, outerRadius):
 
     #Leave a small buffer of pixels around the edge of the lens so as to not include the lens itself anywhere
     global mask
 
-    outterRadius = outterRadius - outterLensBufferPixels
-    innerRadius = outterRadius - 80    
+    outerRadius = outerRadius - outerLensBufferPixels
+    innerRadius = outerRadius - 80    
 
     mask = np.zeros((yRes,xRes), np.uint8)
-    cv2.circle(mask, roiCenter, outterRadius,1,-1)
+    cv2.circle(mask, roiCenter, outerRadius,1,-1)
     cv2.circle(mask, roiCenter, innerRadius,0,-1)
 
     #return mask
@@ -213,7 +218,7 @@ def findHomingAngle(kpCurr, desCurr, kpGoal, desGoal):
 
 	
 #    	if debug:
-       	homingAngleDegrees = degrees(homingAngle)
+    homingAngleDegrees = degrees(homingAngle)
 	if homingAngleDegrees < 0:
        		homingAngleDegrees += 360
    	print "Homing Direction (degrees): ",homingAngleDegrees
@@ -221,36 +226,36 @@ def findHomingAngle(kpCurr, desCurr, kpGoal, desGoal):
 	return homingAngle
 
 
-if __name__ == '__main__':
-    #Check for debug 
-    #parser = OptionParser()
-    #parser.add_option("-d", "--debug", dest="debug_on", help="enable debug output", default=False, action='store_true')
-    #(options, args) = parser.parse_args()
-    #global debug
-    #debug = debug_on
 
-    global roiCenter
 
-    rospy.init_node('scale_space_homing_service')
-    s = rospy.Service('get_bearing_for_goal', GetBearingForGoal, handle_get_bearing_for_goal)
-    t = rospy.Service('set_goal_location', SetGoalLocation, handle_set_goal_location)
-
-    global bearingPub
-    bearingPub = rospy.Publisher("bearing", Float32, queue_size=1)
-
-    # Fetch bubblescope information from the service
-    rospy.wait_for_service('get_bubblescope_properties')
-    get_bubblescope_properties = rospy.ServiceProxy('get_bubblescope_properties', GetBubblescopeProperties)
-    res = get_bubblescope_properties()
+# if __name__ == '__main__':
+#     Check for debug 
+#     parser = OptionParser()
+#     parser.add_option("-d", "--debug", dest="debug_on", help="enable debug output", default=False, action='store_true')
+#     (options, args) = parser.parse_args()
+#     global debug
+#     debug = options.debug_on
 
     
 
-    if res is not None:
+#     rospy.init_node('scale_space_homing_service')
+#     s = rospy.Service('get_bearing_for_goal', GetBearingForGoal, handle_get_bearing_for_goal)
+#     t = rospy.Service('set_goal_location', SetGoalLocation, handle_set_goal_location)
 
-        roiCenter = (int(res.center[0]), int(res.center[1]))
-        outterRad = res.outer_radius
+#     global bearingPub
+#     bearingPub = rospy.Publisher("bearing", Float32, queue_size=1)
 
-        #Generate and save the mask to be applied when finding keypoints
-        generateMask(roiCenter, int(outterRad))
+#     # Fetch bubblescope information from the service
+#     rospy.wait_for_service('get_bubblescope_properties')
+#     get_bubblescope_properties = rospy.ServiceProxy('get_bubblescope_properties', GetBubblescopeProperties)
+#     res = get_bubblescope_properties()    
 
-    rospy.spin()
+#     if res is not None:
+#         global roiCenter
+#         roiCenter = (int(res.center[0]), int(res.center[1]))
+#         outerRad = res.outer_radius
+
+#         #Generate and save the mask to be applied when finding keypoints
+#         generateMask(roiCenter, int(outerRad))
+
+#     rospy.spin()
