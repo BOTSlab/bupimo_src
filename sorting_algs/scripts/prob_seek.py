@@ -205,7 +205,9 @@ class ProbSeek:
                 self.transition("PU_SCAN", "Somehow lost puck!")
             else:
                 closest_puck = get_closest_puck(cluster_array_msg)
-                if closest_puck.type != self.carried_type:
+                if closest_puck == None:
+                    self.transition("PU_SCAN", "No pucks visible")
+                elif closest_puck.type != self.carried_type:
                     self.transition("DE_SCAN", "Closest puck not right type")
                 elif get_puck_distance(closest_puck) < \
                                                 self.CLUSTER_CONTACT_DISTANCE:
