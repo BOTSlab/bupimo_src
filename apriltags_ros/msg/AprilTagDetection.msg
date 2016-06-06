@@ -1,10 +1,7 @@
 int32 id
 float32 x
 float32 y
-float32 z
-float32 yaw
-float32 pitch
-float32 roll
 float32 code
-float32 distance
+float32 max_side_length
+float32 distance_from_image_centre
 float32 bearing

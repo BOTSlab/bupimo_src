@@ -218,7 +218,7 @@ class ProbSeek:
                     if self.target_puck == None:
                         self.transition("DE_SCAN", "Lost target")
                     elif time_in_state > self.PLACEMENT_TIME:
-                        self.transition("SE_SCAN", "Time out")
+                        self.transition("DE_SCAN", "Time out")
 
         elif self.state == "DE_PUSH":
             if time_in_state > self.PUSH_IN_TIME:

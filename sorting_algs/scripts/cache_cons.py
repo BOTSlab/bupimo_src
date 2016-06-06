@@ -11,7 +11,7 @@ significant ways:
     1. Using visual homing as opposed to having direct access to positions.
 Assuming we can only obtain the bearing towards remembered locations.
     2. We cannot really recognize a cluster as the cache cluster or not.  We just home towards the remembered point and deposit whenever we bump into a puck of the right type.  The only other way out of this state (HOMING) would be through a timeout.
-    3. Any visible cluster that is as-large-or-larger than the previous cache cluster will be taken as the new cache cluster (for that type).  But we have to make contact with the cluster before storing the goal image.  So there is a new state called VISIT_NEW_CACHE to achieve this.
+    3. Any visible cluster that is arger than the previous cache cluster will be taken as the new cache cluster (for that type).  But we have to make contact with the cluster before storing the goal image.  So there is a new state called VISIT_NEW_CACHE to achieve this.
 
 Andrew Vardy
 """
@@ -61,12 +61,13 @@ class CacheCons:
         # Parameters (move to ROS parameter server?)
         self.PICK_UP_TIME = 100
         self.TARGET_FINAL_TIME = 10
-        self.PLACEMENT_TIME = 40
+        self.HOMING_TIME = 100
         self.PUSH_IN_TIME = 1
         self.BACKUP_TIME = 5
         self.CLUSTER_CONTACT_DISTANCE = 0.12
         self.MIN_TURN_TIME = 5
         self.MAX_TURN_TIME = 10
+        self.K1 = 1.0
 
         # Publish to 'cmd_vel'
         self.cmd_vel_publisher = rospy.Publisher('cmd_vel', Twist, queue_size=1)
@@ -79,10 +80,10 @@ class CacheCons:
 
         # Setup the services necessary for homing.
         rospy.wait_for_service('set_goal')
-        set_goal = rospy.ServiceProxy('set_goal_location', SetGoalLocation)
+        self.set_goal = rospy.ServiceProxy('set_goal_location', SetGoalLocation)
         rospy.wait_for_service('get_bearing')
-        get_bearing = rospy.ServiceProxy('get_bearing_for_goal', \
-                                         GetBearingForGoal)
+        self.get_bearing = rospy.ServiceProxy('get_bearing_for_goal', \
+                                              GetBearingForGoal)
 
         rospy.on_shutdown(self.shutdown_handler)
 
@@ -123,6 +124,7 @@ class CacheCons:
         print("carried type: " + str(self.carried_type))
 
     def maintain_pickup_target(self, cluster_array_msg):
+        """Used for tracking targets to pickup."""
         candidate = get_closest_puck_to_puck(cluster_array_msg, \
                                              self.target_puck, 0.05)
         if candidate == None or candidate.type != self.carried_type:
@@ -149,19 +151,42 @@ class CacheCons:
         #print(self.state)
 
         ######################################################################
-        # Handle transition to VISIT_NEW_CACHE which can happen from any other
-        # state
+        # Handle transition to VISIT_NEW_CACHE which can happen from any state
         ######################################################################
+        cluster_to_visit = None
+        for cluster in cluster_array_msg.clusters:
+            size = len(cluster.pucks)
+            if (cluster.type not in cache_sizes) or \
+               (size > cache_sizes[cluster.type]):
+                self.transition("VISIT_NEW_CACHE", "Touch the new cache")
+                cluster_sizes[cluster.type] = size
+                cluster_to_visit = cluster
 
         ######################################################################
         # Handle other state transitions
         ######################################################################
+        if self.state == "VISIT_NEW_CACHE":
+            if cluster_to_visit != None:
+                self.target_puck = get_closest_puck_in_cluster(cluster_to_visit)
+            else:
+                # Maintain tracking on the target from last time.
+                self.target_puck = get_closest_puck_to_puck(cluster_array_msg, \
+                                                        self.target_puck, 0.05)
+            if self.target_puck == None:
+                self.transition("PU_SCAN", "Cache disappeared prior to visit")
+            elif get_puck_distance(self.target_puck) < \
+                                            self.CLUSTER_CONTACT_DISTANCE:
+                self.transition("DE_BACKUP", "Established new cache")
+                # Capture goal image!
+                self.set_goal(closest_puck.type)
+                self.target_puck = None
+
         if self.state == "PU_SCAN":
             if self.puck_in_gripper:
                 if self.carried_type == None:
                     self.transition("DE_BACKUP", "Get rid of strange puck!")
                 else:
-                    self.transition("DE_SCAN", "Somehow acquired puck!")
+                    self.transition("HOMING", "Somehow acquired puck!")
             else:
                 smallest_clust = get_smallest_cluster(cluster_array_msg)
                 # Accept this as the pickup cluster with some chance
@@ -185,7 +210,7 @@ class CacheCons:
 
         elif self.state == "PU_TARGET_CLOSE":
             if self.puck_in_gripper:
-                self.transition("DE_SCAN", "Pick-up succeeded early")
+                self.transition("HOMING", "Pick-up succeeded early")
             else:
                 self.maintain_pickup_target(cluster_array_msg)
                 if self.target_puck == None:
@@ -196,42 +221,19 @@ class CacheCons:
 
         elif self.state == "PU_TARGET_FINAL":
             if self.puck_in_gripper:
-                self.transition("DE_SCAN", "Pick-up succeeded")
+                self.transition("HOMING", "Pick-up succeeded")
                 
-        elif self.state == "DE_SCAN":
-#            if not self.puck_in_gripper:
-#                self.transition("PU_SCAN", "Somehow lost puck!")
-#            else:
-# INDENT REST OF BLOCK IF ABOVE UNCOMMENTED
-            #print("DE_SCAN: carried type: " + str(self.carried_type))
-            largest_clust = get_largest_cluster_of_type(cluster_array_msg,
-                                                        self.carried_type)
-            # Accept this as the deposit cluster with some chance
-            accept = self.accept_as_deposit_cluster(largest_clust)
-            if accept:
-                self.target_puck = get_closest_puck_in_cluster(largest_clust)
-                if self.target_puck != None:
-                    self.transition("DE_TARGET", "Deposit target acquired")
-
-        elif self.state == "DE_TARGET":
+        elif self.state == "HOMING":
             if not self.puck_in_gripper:
                 self.transition("PU_SCAN", "Somehow lost puck!")
             else:
                 closest_puck = get_closest_puck(cluster_array_msg)
-                if closest_puck.type != self.carried_type:
-                    self.transition("DE_SCAN", "Closest puck not right type")
-                elif: get_puck_distance(closest_puck) < \
+                if closest_puck.type == self.carried_type and
+                    get_puck_distance(closest_puck) < \
                                                 self.CLUSTER_CONTACT_DISTANCE:
                     self.transition("DE_PUSH", "Contacted cluster")
-                else:
-                    self.target_puck = get_closest_puck_to_puck(
-                                                            cluster_array_msg,
-                                                            self.target_puck,
-                                                            0.1)
-                    if self.target_puck == None:
-                        self.transition("DE_SCAN", "Lost target")
-                    elif time_in_state > self.PLACEMENT_TIME:
-                        self.transition("SE_SCAN", "Time out")
+                elif time_in_state > self.HOMING_TIME:
+                    self.transition("DE_BACKUP", "Time out")
 
         elif self.state == "DE_PUSH":
             if time_in_state > self.PUSH_IN_TIME:
@@ -241,11 +243,11 @@ class CacheCons:
             self.carried_type = None
             print("carried type: " + str(self.carried_type))
             if time_in_state > self.BACKUP_TIME:
-                self.transition("DE_TURN", "")
+                self.transition("EXILE", "")
                 self.initiate_random_turn()
 
-        elif self.state == "DE_TURN":
-            if time_in_state > self.random_turn_time:
+        elif self.state == "EXILE":
+            if time_in_state > self.EXILE_TIME
                 self.transition("PU_SCAN", "Deposit cycle complete")
 
         else:
@@ -256,15 +258,23 @@ class CacheCons:
         # Set velocity based on state.
         ######################################################################
         twist = None
-        if self.state == "PU_SCAN" or self.state == "DE_SCAN":
+        if self.state == "VISIT_NEW_CACHE":
+            closest_puck = get_closest_puck_in_cluster(cluster)
+            assert closest_puck != None
+            twist = move_to_puck(closest_puck)
+
+        if self.state == "PU_SCAN":
             #twist = wander_while_avoiding_obs_pucks(self.obstacle_array_msg, \
             #                                        cluster_array_msg)
             twist = wander_while_avoiding_castobs(self.castobstacle_array_msg)
 
         elif self.state == "PU_TARGET" or \
-             self.state == "PU_TARGET_CLOSE" or \
-             self.state == "DE_TARGET":
+             self.state == "PU_TARGET_CLOSE":
             twist = move_to_puck(self.target_puck)
+
+        elif self.state == "HOMING":
+            bearing = self.get_bearing(self.carried_type)
+            twist = move_towards_bearing(bearing)
 
         elif self.state == "DE_PUSH" or self.state == "PU_TARGET_FINAL":
             twist = forwards()
@@ -272,8 +282,10 @@ class CacheCons:
         elif self.state == "DE_BACKUP":
             twist = backwards()
 
-        elif self.state == "DE_TURN":
-            twist = turn(self.random_turn_dir)
+        elif self.state == "EXILE":
+            # Go away from the "goal"
+            bearing = self.get_bearing(self.carried_type) + math.pi
+            twist = move_towards_bearing(bearing)
 
         else:
             sys.exit("Unknown state")
