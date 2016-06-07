@@ -3,6 +3,7 @@
 import cv2
 import time
 import rospy
+import settings
 import numpy as np
 
 import scale_space_homing as ss
@@ -17,68 +18,54 @@ from std_msgs.msg import Float32
 
 from bubblescope_property_service.srv import *
 from scale_space_homing_service.srv import *
-
-#TODO: Get these from the bubblescope property service
-xRes = 1296
-yRes = 972
+from obstacle_detector.msg import *
 
 isFindingBearing = False
 
-
+#xRes
+#yRes
 
 def handle_get_bearing_for_goal(req):
-	#TODO: call the proper method in scale_space_homing
-	isFindingBearing = True
-	goalId = req.goalId
+    #TODO: call the proper method in scale_space_homing
+    isFindingBearing = True
+    goalId = req.goalId
     res = GetBearingForGoalResponse()
     res.bearing = ss.get_bearing_for_goal(image, goalId)
     isFindingBearing = False
     return res
 
 def handle_set_goal_location(req):
-	ss.set_goal_location(image, req.goalId)
+    ss.set_goal_location(image, req.goalId)
 
 
 
 if __name__ == '__main__':
-    Check for debug 
+    #Check for debug 
     parser = OptionParser()
     parser.add_option("-d", "--debug", dest="debug_on", help="enable debug output", default=False, action='store_true')
     (options, args) = parser.parse_args()
-    global debug
-    debug = options.debug_on
 
     #Define all the obstacle and homing services, publishers etc
-    rospy.init_node('obstacle_detector', anonymous=False)
+    rospy.init_node('bubblescope_analysis', anonymous=False)
     castObsPub = rospy.Publisher('castobstacles', CastObstacleArray, queue_size=1)
     
 
-    rospy.init_node('scale_space_homing_service')
     s = rospy.Service('get_bearing_for_goal', GetBearingForGoal, handle_get_bearing_for_goal)
     t = rospy.Service('set_goal_location', SetGoalLocation, handle_set_goal_location)
+    
+    settings.init(options.debug_on)
 
-    # Fetch bubblescope information from the service
-    rospy.wait_for_service('get_bubblescope_properties')
-    get_bubblescope_properties = rospy.ServiceProxy('get_bubblescope_properties', GetBubblescopeProperties)
-    res = get_bubblescope_properties()    
+    ss.generateMask(settings.roiCenter, int(settings.outer_rad))
 
-    if res is not None:
-        global roiCenter
-        roiCenter = (int(res.center[0]), int(res.center[1]))
-        outerRad = res.outer_radius
-
-        #Generate and save the mask to be applied when finding keypoints
-        ss.generateMask(roiCenter, int(outerRad))
-
-        collision.generate_collision_lines(roiCenter, innerRadius, outerRadius)
+    collision.generate_collision_lines(settings.roiCenter, settings.inner_rad, settings.outer_rad)
 
 
     with PiCamera() as camera:
-            camera.resolution = (xRes,yRes)
-            #camera.ISO = 100
-            #camera.sa = 100
-            #camera.awb = "flash"
-            #camera.co = 100
+            camera.resolution = (settings.xRes,settings.yRes)
+            camera.ISO = 100
+            camera.sa = 100
+            camera.awb = "flash"
+            camera.co = 100
 
             raw_capture = PiRGBArray(camera)
 
@@ -87,14 +74,18 @@ if __name__ == '__main__':
             for frame in camera.capture_continuous(raw_capture, format="bgr", use_video_port=True):
             	global image
                 image = cv2.cvtColor(frame.array, cv2.COLOR_BGR2GRAY)
-
+                print "isFindingBearing: ",isFindingBearing
             	#don't do this while there is a pending homing calculation
                 if isFindingBearing == False:
                 	
-                	# Publish array of detected obstacles for others to have fun with
-				    msg = CastObstacleArray()
-				    msg.obstacles = collision.find_obstacles_on_all_lines(image)
-				    castObsPub.publish(msg)
+                 	# Publish array of detected obstacles for others to have fun with
+		    msg = CastObstacleArray()
+		    msg.obstacles = collision.find_obstacles_on_all_lines(image)
+		    castObsPub.publish(msg)
+                raw_capture.truncate(0)
                 
+                if rospy.is_shutdown():
+                    break
+    
 
     rospy.spin()

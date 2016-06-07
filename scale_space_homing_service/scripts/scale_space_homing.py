@@ -3,6 +3,7 @@
 import cv2
 import numpy as np
 import bubblescope_analysis as bsa
+import settings
 
 from math import atan2, sin, cos, degrees, pi
 
@@ -15,9 +16,6 @@ scaleDiffThresh = 0
 # so a lower value means better matches are used
 matchDistanceThresh=.7
 
-#TODO: Get these from the bubblescope property service
-xRes = 1296
-yRes = 972
 
 #Threshold value used in SURF key point detection
 surfHessianThresh = 600
@@ -30,7 +28,7 @@ goalLocationInformation = [([0],[0])]*nGoalLocations
 
 debug = False
 
-mask = np.zeros((bsa.yRes,bsa.xRes),np.uint8)
+mask = np.zeros((0,0),np.uint8)
 
 #define the thickness (in pixels) of the ring used for masking the above horizon KP search space
 maskRingWidth = 80
@@ -112,25 +110,22 @@ def set_goal_location(image, goalId):
 def get_kp_and_des_at_current_location(image):
     global mask
     #print mask.shape    
-    imgGray = cv2.cvtColor(imageGoal, cv2.COLOR_BGR2GRAY)
+    #imgGray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     #print imgGray.shape
-    return surf.detectAndCompute(imgGray, mask)
+    return surf.detectAndCompute(image, mask)
 
 def generateMask(center, outerRadius):
 
     #Leave a small buffer of pixels around the edge of the lens so as to not include the lens itself anywhere
     global mask
-    global roiCenter
-    roiCenter = center
 
     outerRadius = outerRadius - outerLensBufferPixels
     innerRadius = outerRadius - 80    
 
-    mask = np.zeros((yRes,xRes), np.uint8)
-    cv2.circle(mask, roiCenter, outerRadius,1,-1)
-    cv2.circle(mask, roiCenter, innerRadius,0,-1)
+    mask = np.zeros((settings.yRes,settings.xRes), np.uint8)
+    cv2.circle(mask, center, outerRadius,1,-1)
+    cv2.circle(mask, center, innerRadius,0,-1)
 
-    #return mask
 
 #based on the number and direction of the contraction and expansion angles, calculate the final weighted homing direction
 def calcHomingAngle(contractionAngles, expansionAngles):
@@ -177,7 +172,7 @@ def sortMatches(knnmatches, kpCurr, kpGoal):
 
             currkpCurr = kpCurr[m.queryIdx]
             currkpGoal = kpGoal[m.trainIdx]
-            rads = atan2(roiCenter[1]-currkpCurr.pt[1],currkpCurr.pt[0]-roiCenter[0])
+            rads = atan2(settings.roiCenter[1]-currkpCurr.pt[1],currkpCurr.pt[0]-settings.roiCenter[0])
             if rads < 0:
                 rads=rads + (2*pi)
             	print "kpCurr sise",currkpCurr.size
@@ -211,7 +206,7 @@ def findHomingAngle(kpCurr, desCurr, kpGoal, desGoal):
 
 	
 #    	if debug:
-    homingAngleDegrees = degrees(homingAngle)
+        homingAngleDegrees = degrees(homingAngle)
 	if homingAngleDegrees < 0:
        		homingAngleDegrees += 360
    	print "Homing Direction (degrees): ",homingAngleDegrees

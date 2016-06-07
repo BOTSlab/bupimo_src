@@ -8,10 +8,9 @@ import cv2
 import cv
 import numpy as np
 import rospy, math
+import settings
 
-import bubblescope_analysis as bsa
-#from bubblescope_property_service.srv import *
-
+from scale_space_homing_service.msg import *
 # TODO: these should come from the parameter server
 #img_width = 1296
 #img_height = 972
@@ -83,11 +82,11 @@ def detect_collision_in_ray(image, theta, p1, p2):
     line_pos = []
     line_col = []
     y = p1c[1]
-    if y < img_height:
+    if y < settings.yRes:
         for x in range(p1c[0], p2c[0]-1):
-            if x < img_width:
+            if x < settings.xRes:
                 line_pos.append(switch_from_octant_zero(theta, (x,y)))
-                if line_pos[-1][1] < img_height and line_pos[-1][0] < img_width:
+                if line_pos[-1][1] < settings.yRes and line_pos[-1][0] < settings.xRes:
                     line_col.append(image[line_pos[-1][1]][line_pos[-1][0]])
                 else:
                     line_col.append(0.0)
@@ -113,8 +112,8 @@ def detect_collision_in_ray(image, theta, p1, p2):
             return line_pos[idx]
 
 def generate_collision_lines(center,inner_rad, outer_rad):
-    x = center.x
-    y = center.y
+    x = center[0]
+    y = center[1]
 
     # Lines start offset slightly from the inner circle
     # Assume endpoint is another offset from inner circle
@@ -136,11 +135,16 @@ def generate_collision_lines(center,inner_rad, outer_rad):
         lines.append( (theta, p1xr, p1yr, p2xr, p2yr) )
 
 
-def find_obstacles_on_all_lines(image):
+def find_obstacles_on_all_lines(image, debug = False):
     # Iterate over each line and detect edges
     # detect_collision_in_ray will return the first obstacle encountered on a line
     # The angle and distance from image centre are stored to describe the obstacle position (polar coords)
     # Image centre is also reported
+
+    image_gray = image
+
+    x = settings.roiCenter[0]
+    y = settings.roiCenter[1]
 
     obstacles = []
     for line in lines:
@@ -155,7 +159,7 @@ def find_obstacles_on_all_lines(image):
 
             obstacles.append(obstacle)
 
-            if bsa.debug:
+            if debug:
                 # Add to our Centre-Of-Mass estimate
                 if obstacle.rho > avg_rho:
                     com_x = com_x + math.cos(obstacle.theta)
@@ -172,6 +176,21 @@ def find_obstacles_on_all_lines(image):
                     cv2.circle(image, collision_pos, 5, (0,255,0), -1)
                 else:
                     cv2.circle(image, collision_pos, 5, (0,0,0), 1)
+
+
+                # Show a line indicating the direction of the Centre-Of-Mass
+                com_angle = math.atan2(com_y, com_x)
+                com_draw_x = x + int(200*math.cos(com_angle))
+                com_draw_y = y - int(200*math.sin(com_angle))
+                cv2.line(image, (x, y), (com_draw_x, com_draw_y), (255, 0, 0), 10)
+
+                cv2.imshow("DEBUG", image)
+                key = cv2.waitKey(1) & 0xFF
+
+                if key == ord("q"):
+                    break
+
+
     return obstacles
 
 
