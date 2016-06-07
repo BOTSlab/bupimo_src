@@ -17,6 +17,10 @@ PI_OVER_2 = math.pi / 2.0
 # in 'wander_while_avoiding'.
 last_wander_angular = 0
 
+# List containing a count for which the index (of 'castobstacles') which has
+# the miniumum rho ...
+min_rho_accum = None
+
 def forwards():
     twist = Twist()
     twist.linear.x = FORWARD_SPEED
@@ -97,7 +101,7 @@ def move_towards_bearing(bearing):
 
 def wander_while_avoiding_castobs(castobstacle_array_msg):
     """Random walk while avoiding cast obstacles."""
-#    global last_wander_angular
+    global min_rho_accum
 
     if castobstacle_array_msg == None:
         # The message has probably just not been published yet, go forwards
@@ -107,38 +111,52 @@ def wander_while_avoiding_castobs(castobstacle_array_msg):
     # it is too close.
     closest_obs = None
     closest_rho = float('inf')
-    for obs in castobstacle_array_msg.obstacles:
+    closest_index = None
+    n = len(castobstacle_array_msg.obstacles):
+    for i in range(n):
+        obs = castobstacle_array_msg.obstacles[i]
         if obs.rho < closest_rho:
             closest_obs = obs
             closest_rho = obs.rho
-    if closest_obs != None:
-        closest_theta = constrain_angle(closest_obs.theta)
+            closest_index = i
+    assert closest_obs != None
     
+    # Accumulate the closest obstacle index
+    if min_rho_accum == None:
+        # Initialize with all zeros
+        min_rho_accum = [0 for i in range(n)]
 
-    # For each cast obstacle we will specify a vector whose length is given by
-    # the 'rho' value.  We then sum all of these up and try and move in this
-    # direction.
-#    vx = 0
-#    vy = 0
-#    for obs in castobstacle_array_msg.obstacles:
-#        vx = vx + obs.rho**2 * math.cos(obs.theta)
-#        vy = vy + obs.rho**2 * math.sin(obs.theta)
-#    desired_angle = math.atan2(vy, vx)
+    min_rho_accum[closest_index] += 1
+    gamma = 0.9
+    for i in range(n):
+        min_rho_accum[i] *= gamma
 
-    twist = Twist()
-    threshold = 105
-    if closest_rho < threshold and closest_theta > 0 and closest_theta < PI_OVER_2:
-        # Turn right to avoid
-        twist.linear.x = 0.5 * FORWARD_SPEED
-        twist.angular.z = -ROT_SPEED
-#        last_wander_angular = 0
-    elif closest_rho < threshold and closest_theta < 0 and closest_theta > -PI_OVER_2:
-        # Turn left to avoid
-        twist.linear.x = 0.5 * FORWARD_SPEED
-        twist.angular.z = ROT_SPEED
-#        last_wander_angular = 0
+    # There are two options: if avoid is false then we seek the most open space.
+    # If true then we avoid that obstacle.
+    avoid = False
+    if max(min_rho_accum) < 9:
+        avoid = True
+        
+    if not avoid:
+        # For each cast obstacle we will specify a vector whose length is given
+        # by the 'rho' value.  We then sum all of these up and try and move in
+        # this direction.
+        vx = 0
+        vy = 0
+        for obs in castobstacle_array_msg.obstacles:
+            vx = vx + obs.rho**2 * math.cos(obs.theta)
+            vy = vy + obs.rho**2 * math.sin(obs.theta)
+        bearing = math.atan2(vy, vx)
+        move_towards_bearing(bearing)
+
     else:
-        # The way is clear.  
-        twist.linear.x = FORWARD_SPEED
+        closest_theta = constrain_angle(closest_obs.theta)
+        if closest_theta > 0 and closest_theta < PI_OVER_2:
+            move_towards_bearing(closest_theta - PI_OVER_2)
+        elif closest_theta < 0 and closest_theta > -PI_OVER_2:
+            move_towards_bearing(closest_theta + PI_OVER_2)
+        else:
+            # The way is clear.  
+            twist.linear.x = FORWARD_SPEED
 
     return twist
