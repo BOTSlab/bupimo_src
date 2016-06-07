@@ -35,8 +35,10 @@ def handle_get_bearing_for_goal(req):
     return res
 
 def handle_set_goal_location(req):
+    print "pre SS call"
     ss.set_goal_location(image, req.goalId)
-
+    print "post SS call"
+    return SetGoalLocationResponse()
 
 
 if __name__ == '__main__':

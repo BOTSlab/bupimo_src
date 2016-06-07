@@ -94,16 +94,19 @@ def set_goal_location(image, goalId):
         goalLocationInformation[goalId] = get_kp_and_des_from_image(image)
 
     #Just for testing, remove this
-    kps,des = goalLocationInformation[goalId]
-    #imgColor = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-    for kp in kps:
-        x, y = kp.pt
-        cv2.circle(image, (int(x),int(y)),2, (0,255,0))
-    
     if settings.debug:
-        cv2.imshow("KPs", image)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        kps,des = goalLocationInformation[goalId]
+        imageColor = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        for kp in kps:
+            x, y = kp.pt
+            cv2.circle(imageColor, (int(x),int(y)),2, (0,255,0))
+    
+        cv2.imshow("KPs", imageColor)
+        key = cv2.waitKey(1) & 0xFF
+        
+        if key == ord("q"):
+            cv2.destroyAllWindows()
+
 
 def get_kp_and_des_from_image(image):
     global mask
