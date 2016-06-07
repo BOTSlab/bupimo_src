@@ -26,7 +26,6 @@ surf = cv2.SURF(surfHessianThresh)
 nGoalLocations = 8
 goalLocationInformation = [([0],[0])]*nGoalLocations
 
-debug = False
 
 mask = np.zeros((0,0),np.uint8)
 
@@ -61,7 +60,7 @@ def get_bearing_for_goal(image, goalId):
 
     if goalId in range(0,nGoalLocations):
         kpGoal, desGoal = goalLocationInformation[goalId]
-        kpCurr, desCurr = get_kp_and_des_at_current_location(image)
+        kpCurr, desCurr = get_kp_and_des_from_image(image)
 
         bearing =  findHomingAngle(kpCurr, desCurr, kpGoal, desGoal)
     return bearing
@@ -92,7 +91,7 @@ def get_bearing_for_goal(image, goalId):
 
 def set_goal_location(image, goalId):
     if goalId in range(0,nGoalLocations):        
-        goalLocationInformation[goalId] = get_kp_and_des_at_current_location(image)
+        goalLocationInformation[goalId] = get_kp_and_des_from_image(image)
 
     #Just for testing, remove this
     kps,des = goalLocationInformation[goalId]
@@ -100,14 +99,13 @@ def set_goal_location(image, goalId):
     for kp in kps:
         x, y = kp.pt
         cv2.circle(image, (int(x),int(y)),2, (0,255,0))
-        #cv2.drawKeypoints(image,kp)
-        #cv2.imshow("KPs", image)
+    
+    if settings.debug:
+        cv2.imshow("KPs", image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
-    cv2.imshow("KPs", image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
-def get_kp_and_des_at_current_location(image):
+def get_kp_and_des_from_image(image):
     global mask
     #print mask.shape    
     #imgGray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -175,15 +173,15 @@ def sortMatches(knnmatches, kpCurr, kpGoal):
             rads = atan2(settings.roiCenter[1]-currkpCurr.pt[1],currkpCurr.pt[0]-settings.roiCenter[0])
             if rads < 0:
                 rads=rads + (2*pi)
-            	print "kpCurr sise",currkpCurr.size
-            	print "kpGoal size",currkpGoal.size
+            	#print "kpCurr sise",currkpCurr.size
+            	#print "kpGoal size",currkpGoal.size
             if currkpCurr.size > (currkpGoal.size + scaleDiffThresh):
                 contractionMatches.append(m)
-                print "contractionAngle: ",rads
+                #print "contractionAngle: ",rads
                 contractionAngles.append(rads)
             elif currkpCurr.size < (currkpGoal.size - scaleDiffThresh):
                 expansionMatches.append(m)
-                print "expansionAngle: ",rads
+                #print "expansionAngle: ",rads
                 expansionAngles.append(rads)
 
     return contractionMatches, expansionMatches, contractionAngles, expansionAngles
@@ -196,20 +194,20 @@ def findHomingAngle(kpCurr, desCurr, kpGoal, desGoal):
 
 	contractionMatches, expansionMatches, contractionAngles, expansionAngles = sortMatches(matches, kpCurr, kpGoal)
 
-#    	if debug:
-#            print "Total number of Matches: "+str(len(matches))
-#            print "Total number of \'good\' Matches: "+str(len(contractionMatches)+len(expansionMatches))
-#	    print "contractionMatches size: " +str(len(contractionMatches))
-#	    print "expansionMatches size: "+str(len(expansionMatches))
+    	if settings.debug:
+            print "Total number of Matches: "+str(len(matches))
+            print "Total number of \'good\' Matches: "+str(len(contractionMatches)+len(expansionMatches))
+	    print "contractionMatches size: " +str(len(contractionMatches))
+	    print "expansionMatches size: "+str(len(expansionMatches))
 
 	homingAngle = calcHomingAngle(contractionAngles, expansionAngles)
 
 	
-#    	if debug:
-        homingAngleDegrees = degrees(homingAngle)
-	if homingAngleDegrees < 0:
-       		homingAngleDegrees += 360
-   	print "Homing Direction (degrees): ",homingAngleDegrees
+    	if settings.debug:
+            homingAngleDegrees = degrees(homingAngle)
+	    if homingAngleDegrees < 0:
+       	        homingAngleDegrees += 360
+   	    print "Homing Direction (degrees): ",homingAngleDegrees
 
 	return homingAngle
 

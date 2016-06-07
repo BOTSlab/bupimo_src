@@ -74,7 +74,6 @@ if __name__ == '__main__':
             for frame in camera.capture_continuous(raw_capture, format="bgr", use_video_port=True):
             	global image
                 image = cv2.cvtColor(frame.array, cv2.COLOR_BGR2GRAY)
-                print "isFindingBearing: ",isFindingBearing
             	#don't do this while there is a pending homing calculation
                 if isFindingBearing == False:
                 	
