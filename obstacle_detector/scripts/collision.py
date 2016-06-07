@@ -114,6 +114,9 @@ def detect_collision_in_ray(image, theta, p1, p2):
         if val > 100 and idx > 5 and idx < line_grad.size-10:
             return line_pos[idx]
 
+    # Return the last value, indicating maximum range
+    return line_pos[len(line_pos) - 1]
+
 if __name__ == '__main__':
     parser = OptionParser()
     parser.add_option("-d", "--debug", dest="debug_on", help="enable debug output", default=False, action='store_true')
