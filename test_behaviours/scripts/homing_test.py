@@ -15,7 +15,24 @@ from geometry_msgs.msg import Twist
 from bupimo_utils.movements import move_to_puck
 from bupimo_utils.movements import move_towards_bearing
 
-def clusters_callback(cluster_array_msg):
+def pausing_callback(cluster_array_msg):
+    global pause_counter
+
+    if (pause_counter % pause_interval) == 0:
+        # Do the actual work
+        working_callback(cluster_array_msg)
+
+    elif (pause_counter % pause_interval) < pause_movetime:
+        # Continue with previously published speed
+        pass
+
+    else:
+        # Stop
+        cmd_vel_publisher.publish(Twist())
+
+    pause_counter += 1
+
+def working_callback(cluster_array_msg):
     """Doing things in this callback just because that will be the main method
     for cache_cons."""
 
@@ -31,6 +48,13 @@ def clusters_callback(cluster_array_msg):
     cmd_vel_publisher.publish(twist)
         
 if __name__ == '__main__':
+    global pause_interval, move_interval, pause_counter
+
+    do_pause = True
+    pause_interval = 25
+    pause_movetime = 5 
+    pause_counter = 0
+
     rospy.init_node('homing_test')
 
     # Wait for the 'set_goal' service then call it to capture the current
