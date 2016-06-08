@@ -18,8 +18,8 @@ import common_picking
 import common_calib
 
 def main():
-    image_filename = 'robot_1.png'
-    filename_out =   'robot_1_known_correspondences.csv'
+    image_filename = 'robot_7.png'
+    filename_out =   'robot_7_known_correspondences.csv'
 
     robotCoords = []
     id = 0

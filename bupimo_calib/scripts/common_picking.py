@@ -4,7 +4,7 @@ Common utilities for picking points (i.e. annotating) input images.
 """
 
 import pygame
-import Image
+#import Image
 import os
 import csv
 
