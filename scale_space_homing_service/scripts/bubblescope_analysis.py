@@ -22,9 +22,6 @@ from obstacle_detector.msg import *
 
 isFindingBearing = False
 
-#xRes
-#yRes
-
 def handle_get_bearing_for_goal(req):
     #TODO: call the proper method in scale_space_homing
     isFindingBearing = True
@@ -61,7 +58,8 @@ if __name__ == '__main__':
 
     collision.generate_collision_lines(settings.roiCenter, settings.inner_rad, settings.outer_rad)
 
-
+    print "settings.xRes: ",settings.xRes
+    print "settings.yRes: ",settings.yRes
     with PiCamera() as camera:
             camera.resolution = (settings.xRes,settings.yRes)
             camera.ISO = 100
@@ -73,9 +71,15 @@ if __name__ == '__main__':
 
             time.sleep(0.1)
 
+            firstFrame = True
+
             for frame in camera.capture_continuous(raw_capture, format="bgr", use_video_port=True):
             	global image
                 image = cv2.cvtColor(frame.array, cv2.COLOR_BGR2GRAY)
+
+                if firstFrame == True:
+                    print "image.shape: " + str(image.shape)
+                    firstFrame = False
             	#don't do this while there is a pending homing calculation
                 if isFindingBearing == False:
                 	
