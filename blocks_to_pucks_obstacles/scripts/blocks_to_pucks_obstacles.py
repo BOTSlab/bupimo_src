@@ -126,9 +126,7 @@ if __name__ == '__main__':
 
     # Read in the interpolated correspondences determined via the calibration
     # process.
-    calib_dir = rospkg.RosPack().get_path('bupimo_calib')
-    [Xi, Yi, Xr, Yr] = readCorrespondences(\
-            calib_dir + '/scripts/interpolated_correspondences.csv')
+    [Xi, Yi, Xr, Yr] = readCorrespondences('/home/pi/robot_int_cor.csv')
 
     # Create a dictionary for convenient look-up of the position corresponding
     # to each available image coordinate.
