@@ -39,6 +39,13 @@ def turn(direction):
     twist.angular.z = direction * ROT_SPEED
     return twist
 
+def curve(direction):
+    """Generate a twist message that moves us forward while turning in the given direction."""
+    twist = Twist()
+    twist.linear.x = FORWARD_SPEED
+    twist.angular.z = direction * 0.5 * ROT_SPEED
+    return twist
+
 def wander_while_avoiding(obs_or_puck):
     global last_wander_angular
 
@@ -92,18 +99,30 @@ def move_to_puck(puck):
 
     return twist
 
-def move_towards_bearing(bearing):
-    """Generate a twist message that moves us towards the given puck."""
+
+def move_towards_bearing_calm(bearing):
+    """Generate a twist message that moves us towards the given bearing, but notgoing backwards."""
+    twist = move_towards_bearing_aggressive(bearing)
+    if twist.linear.x < 0:
+        twist.linear.x = 0
+    return twist
+
+def move_towards_bearing_aggressive(bearing):
+    """Generate a twist message that moves us towards the given bearing,
+including potentially going backwards."""
     twist = Twist()
     bearing = constrain_angle(bearing)
-    twist.linear.x = FORWARD_SPEED
+    if bearing > 0:
+        twist.linear.x = (PI_OVER_2 - bearing) / PI_OVER_2 * FORWARD_SPEED
+    else:
+        twist.linear.x = (bearing + PI_OVER_2) / PI_OVER_2 * FORWARD_SPEED
     twist.angular.z = ROT_SPEED * (bearing / math.pi)
     return twist
 
 
 def wander_while_avoiding_castobs(castobstacle_array_msg):
     """Random walk while avoiding cast obstacles."""
-    global min_rho_accum, wander_state
+    global min_rho_accum, wander_state, time_in_random
 
     if castobstacle_array_msg == None:
         # The message has probably just not been published yet, go forwards
@@ -124,24 +143,13 @@ def wander_while_avoiding_castobs(castobstacle_array_msg):
     assert closest_obs != None
     
     if min_rho_accum == None:
-        # Initialize with all zeros
-        min_rho_accum = [0 for i in range(n)]
-
-    if wander_state == None:
+        # Initialize globals used here
+        min_rho_accum = [0 for i in range(n)] # All zeros
         wander_state = "AVOID"
+        time_in_random = 0
 
-    # Print it (DEBUG)
-    print("n: " + str(n))
-    print("accum: ")
+    # Print accumulator
     print(min_rho_accum)
-
-    # Accumulate the closest obstacle index
-#    gamma = 0.9
-#    for i in range(n):
-#        if i == closest_index:
-#            min_rho_accum[i] = 1 + gamma*min_rho_accum[i]
-#        else:
-#            min_rho_accum[i] = gamma*min_rho_accum[i]
 
     if wander_state == "AVOID":
         # Add to accumulator
@@ -149,46 +157,36 @@ def wander_while_avoiding_castobs(castobstacle_array_msg):
             if i == closest_index:
                 min_rho_accum[i] += 1
     else:
-        # Degrade values in accumulator
-        for i in range(n):
-            if min_rho_accum[i] > 0:
-                min_rho_accum[i] -=1
+        time_in_random += 1
 
-    if wander_state == "AVOID" and max(min_rho_accum) == 10:
+    # State transition
+    if wander_state == "AVOID" and max(min_rho_accum) == 20:
         wander_state = "RANDOM"
-    elif wander_state == "RANDOM" and max(min_rho_accum) == 0:
+        time_in_random = 0
+    elif wander_state == "RANDOM" and time_in_random == 5:
         wander_state = "AVOID"
+        min_rho_accum = [0 for i in range(n)] # All zeros
 
-#    if wander_state == "SEEK":
-#        print("AVOID")
-#        # For each cast obstacle we will specify a vector whose length is given
-#        # by the 'rho' value.  We then sum all of these up and try and move in
-#        # this direction.
-#        vx = 0
-#        vy = 0
-#        for obs in castobstacle_array_msg.obstacles:
-#            vx = vx + obs.rho**2 * math.cos(obs.theta)
-#            vy = vy + obs.rho**2 * math.sin(obs.theta)
-#        bearing = math.atan2(vy, vx)
-#
-#        return move_towards_bearing(bearing)
-#
+    # Behaviour for state
     if wander_state == "AVOID":
         print("AVOID")
         closest_theta = constrain_angle(closest_obs.theta)
         if closest_theta > 0 and closest_theta < PI_OVER_2:
-            return move_towards_bearing(closest_theta - PI_OVER_2)
+            #return move_towards_bearing_calm(closest_theta - PI_OVER_2)
+            return curve(1)
         elif closest_theta < 0 and closest_theta > -PI_OVER_2:
-            return move_towards_bearing(closest_theta + PI_OVER_2)
+            #return move_towards_bearing_calm(closest_theta + PI_OVER_2)
+            return curve(-1)
         else:
             # The way is clear.  
             return forwards()
     elif wander_state == "RANDOM":
+        print("RANDOM")
         r = random.randint(0, 4)
         if r == 0:
             return forwards()
         elif r == 1:
-            return forwards()
+            return backwards()
         elif r == 2:
             return backwards()
         elif r == 3:

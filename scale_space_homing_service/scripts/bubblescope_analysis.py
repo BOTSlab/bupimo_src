@@ -85,7 +85,7 @@ if __name__ == '__main__':
                 	
                  	# Publish array of detected obstacles for others to have fun with
 		    msg = CastObstacleArray()
-		    msg.obstacles = collision.find_obstacles_on_all_lines(image)
+		    msg.obstacles = collision.find_obstacles_on_all_lines(image, frame.array, options.debug_on)
 		    castObsPub.publish(msg)
                 raw_capture.truncate(0)
                 
