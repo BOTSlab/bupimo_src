@@ -53,11 +53,21 @@ class ProbSeek:
         self.K1 = 1.0
         self.K2 = 2.0
 
+        # To support pausing
+        do_pause = False
+        self.pause_interval = 25
+        self.pause_movetime = 5 
+        self.pause_counter = 0
+
         # Publish to 'cmd_vel'
         self.cmd_vel_publisher = rospy.Publisher('cmd_vel', Twist, queue_size=1)
 
         # Subscriptions
-        rospy.Subscriber('clusters', ClusterArray, self.clusters_callback)
+        if do_pause:
+            rospy.Subscriber('clusters', ClusterArray, self.pausing_callback)
+        else:
+            rospy.Subscriber('clusters', ClusterArray, self.working_callback)
+
         rospy.Subscriber('zumo_prox', ZumoProximities, self.prox_callback)
         #rospy.Subscriber('obstacles', ObstacleArray, self.obstacles_callback)
         rospy.Subscriber('castobstacles', CastObstacleArray, self.castobstacles_callback)
@@ -117,9 +127,20 @@ class ProbSeek:
     def maintain_pickup_target(self, cluster_array_msg):
         candidate = get_closest_puck_to_puck(cluster_array_msg, \
                                              self.target_puck, 0.05)
-        if candidate == None or candidate.type != self.carried_type:
+        if candidate == None or candidate.type != self.target_puck:
             # If there is no candidate or the type has changed then we will
             # indicate that tracking has failed by setting the target to None.
+            self.target_puck = None
+        else:
+            self.target_puck = candidate
+
+    def maintain_deposit_target(self, cluster_array_msg):
+        candidate = get_closest_puck_to_puck(cluster_array_msg, \
+                                             self.target_puck, 0.05)
+        if candidate == None or candidate.type != self.carried_type:
+            # If there is no candidate or the type is not the carried type 
+            # then we indicate that tracking has failed by setting the target
+            # to None.
             self.target_puck = None
         else:
             self.target_puck = candidate
@@ -133,7 +154,22 @@ class ProbSeek:
         self.random_turn_time = random.randint(self.MIN_TURN_TIME, 
                                                self.MAX_TURN_TIME)
 
-    def clusters_callback(self, cluster_array_msg):
+    def pausing_callback(self, cluster_array_msg):
+        if (self.pause_counter % self.pause_interval) == 0:
+            # Do the actual work
+            working_callback(cluster_array_msg)
+
+        elif (self.pause_counter % self.pause_interval) < self.pause_movetime:
+            # Continue with previously published speed
+            pass
+
+        else:
+            # Stop
+            self.cmd_vel_publisher.publish(Twist())
+
+        self.pause_counter += 1
+
+    def working_callback(self, cluster_array_msg):
         """This callback is the primary control method of the class."""
 
         self.current_step = cluster_array_msg.header.seq
@@ -152,8 +188,7 @@ class ProbSeek:
             else:
                 smallest_clust = get_smallest_cluster(cluster_array_msg)
                 # Accept this as the pickup cluster with some chance
-                accept = self.accept_as_pickup_cluster(smallest_clust)
-                if accept:
+                if self.accept_as_pickup_cluster(smallest_clust):
                     self.set_new_pickup_target_from_cluster(smallest_clust)
                     if self.target_puck != None:
                         self.transition("PU_TARGET", "Pick-up target acquired")
@@ -186,47 +221,37 @@ class ProbSeek:
                 self.transition("PU_SCAN", "Time out")
                 
         elif self.state == "DE_SCAN":
-#            if not self.puck_in_gripper:
-#                self.transition("PU_SCAN", "Somehow lost puck!")
-#            else:
-# INDENT REST OF BLOCK IF ABOVE UNCOMMENTED
-            #print("DE_SCAN: carried type: " + str(self.carried_type))
-            closest_puck = get_closest_puck(cluster_array_msg)
-            if closest_puck != None and closest_puck.type == self.carried_type \
-               and get_puck_distance(closest_puck) < \
-                                            self.CLUSTER_CONTACT_DISTANCE:
-                self.transition("DE_PUSH", "Non-targeted cluster --- Ok!")
+            if not self.puck_in_gripper:
+                self.transition("PU_SCAN", "Somehow lost puck!")
             else:
-                largest_clst = get_largest_cluster_of_type(cluster_array_msg,
-                                                            self.carried_type)
-                # Accept this as the deposit cluster with some chance
-                accept = self.accept_as_deposit_cluster(largest_clst)
-                if accept:
-                    self.target_puck = get_closest_puck_in_cluster(largest_clst)
-                    if self.target_puck != None:
-                        self.transition("DE_TARGET", "Deposit target acquired")
+                print("DE_SCAN: carried type: " + str(self.carried_type))
+                closest_puck = get_closest_puck(cluster_array_msg)
+                if closest_puck != None \
+                    and closest_puck.type == self.carried_type \
+                    and get_puck_distance(closest_puck) < \
+                                                self.CLUSTER_CONTACT_DISTANCE:
+                    self.transition("DE_PUSH", "Non-targeted cluster --- Ok!")
+                else:
+                    big_c = get_largest_cluster_of_type(cluster_array_msg, \
+                                                        self.carried_type)
+                    # Accept this as the deposit cluster with some chance
+                    if self.accept_as_deposit_cluster(big_c):
+                        self.target_puck = get_closest_puck_in_cluster(big_c)
+                        if self.target_puck != None:
+                            self.transition("DE_TARGET", "Deposit target acq'd")
 
         elif self.state == "DE_TARGET":
             if not self.puck_in_gripper:
                 self.transition("PU_SCAN", "Somehow lost puck!")
             else:
-                closest_puck = get_closest_puck(cluster_array_msg)
-                if closest_puck == None:
-                    self.transition("PU_SCAN", "No pucks visible")
-                elif closest_puck.type != self.carried_type:
-                    self.transition("DE_SCAN", "Closest puck not right type")
-                elif get_puck_distance(closest_puck) < \
+                self.maintain_deposit_target(cluster_array_msg)
+                if self.target_puck == None:
+                    self.transition("DE_SCAN", "Lost target")
+                elif get_puck_distance(self.target_puck) < \
                                                 self.CLUSTER_CONTACT_DISTANCE:
                     self.transition("DE_PUSH", "Contacted cluster")
-                else:
-                    self.target_puck = get_closest_puck_to_puck(
-                                                            cluster_array_msg,
-                                                            self.target_puck,
-                                                            0.1)
-                    if self.target_puck == None:
-                        self.transition("DE_SCAN", "Lost target")
-                    elif time_in_state > self.PLACEMENT_TIME:
-                        self.transition("DE_SCAN", "Time out")
+                elif time_in_state > self.PLACEMENT_TIME:
+                    self.transition("DE_SCAN", "Time out")
 
         elif self.state == "DE_PUSH":
             if time_in_state > self.PUSH_IN_TIME:

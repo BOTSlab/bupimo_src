@@ -11,14 +11,14 @@ from math import floor
 # The (xr, yr) position of the upper-left target in the calibration grid,
 # measured in metres.
 upper_left_x = 0.532
-upper_left_y = 0.399
+upper_left_y = 0.266
 
 # The distance between targets (assuming that the same distance exists between
 # rows as between columns).
 inter_target_distance = 0.266
 
 # Width in targets.  In other words, the number of targets in a row
-width_in_targets = 4
+width_in_targets = 3
 
 # Height in targets---the number of targets in a column
 height_in_targets = 3

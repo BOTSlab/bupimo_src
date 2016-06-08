@@ -14,10 +14,13 @@ import matplotlib.mlab as mlab
 import numpy as np
 from numpy.ma import masked
 
+filename_in =   'robot_1_known_correspondences.csv'
+filename_out =  'robot_1_interpolated_correspondences.csv'
+
 def main():
-    interpolate('known_correspondences.csv', (318, 198))
+    interpolate((318, 198))
     
-def interpolate(filename_in, (width, height)):
+def interpolate((width, height)):
 
     # Resolution string
     #resString = str(width) + 'x' + str(height)
@@ -75,7 +78,6 @@ def interpolate(filename_in, (width, height)):
     # Write to the output file in CSV format where the first two columns
     # are the (x, y) coordinates in image space and the next two columns
     # are the corresponding interpolated (Xr, Yr) coordinates in robot space.
-    filename_out = 'interpolated_correspondences.csv'
     with open(filename_out, 'w') as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=['xi', 'yi', 'Xr', 'Yr'], \
                                 delimiter=',')

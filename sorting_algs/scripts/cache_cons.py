@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Implementation of a variant of the Cache Consensus algorithm described in the following paper:
+Implements a variant of the Cache Consensus algorithm described in the following paper:
 
 A. Vardy, G. Vorobyev, W. Banzhaf
 Cache Consensus: Rapid Object Sorting by a Robotic Swarm
@@ -11,19 +11,21 @@ significant ways:
     1. Using visual homing as opposed to having direct access to positions.
 Assuming we can only obtain the bearing towards remembered locations.
     2. We cannot really recognize a cluster as the cache cluster or not.  We just home towards the remembered point and deposit whenever we bump into a puck of the right type.  The only other way out of this state (HOMING) would be through a timeout.
-    3. Any visible cluster that is arger than the previous cache cluster will be taken as the new cache cluster (for that type).  But we have to make contact with the cluster before storing the goal image.  So there is a new state called VISIT_NEW_CACHE to achieve this.
+    3. Any visible cluster that is larger than the previous cache cluster will be taken as the new cache cluster (for that type).  But we have to make contact with the cluster before storing the goal image.  So there is a new state called VISIT_NEW_CACHE to achieve this.
 
 Andrew Vardy
 """
 
-import rospy, math
+import rospy, math, sys
 from bupimo_msgs.msg import Puck
 from bupimo_msgs.msg import PuckArray
 from bupimo_msgs.msg import Cluster
 from bupimo_msgs.msg import ClusterArray
 from bupimo_msgs.msg import ZumoProximities
 from bupimo_msgs.msg import ObstacleArray
-from obstacle_detector.msg import CastObstacleArray
+from scale_space_homing_service.msg import CastObstacleArray
+from scale_space_homing_service.srv import SetGoalLocation
+from scale_space_homing_service.srv import GetBearingForGoal
 from geometry_msgs.msg import Twist
 
 from bupimo_utils.pucks_and_clusters import get_puck_distance
@@ -47,8 +49,6 @@ class CacheCons:
         self.target_puck = None
         self.current_step = 0
         self.state_start_step = 0
-        self.random_turn_dir = 1
-        self.random_turn_time = 0
         #self.obstacle_array_msg = None
         self.castobstacle_array_msg = None
 
@@ -56,7 +56,7 @@ class CacheCons:
         # means no pucks of that type have yet been seen.  This is all we need
         # to store here with respect to caches --- the goal images reside in
         # the provider of the 'set_goal' and the 'get_bearing' services.
-        cache_sizes = {}
+        self.cache_sizes = {}
 
         # Parameters (move to ROS parameter server?)
         self.PICK_UP_TIME = 100
@@ -64,10 +64,16 @@ class CacheCons:
         self.HOMING_TIME = 100
         self.PUSH_IN_TIME = 1
         self.BACKUP_TIME = 5
+        self.EXILE_TIME = 10
         self.CLUSTER_CONTACT_DISTANCE = 0.12
-        self.MIN_TURN_TIME = 5
-        self.MAX_TURN_TIME = 10
         self.K1 = 1.0
+
+        # Setup the services necessary for homing.
+        rospy.wait_for_service('set_goal_location')
+        self.set_goal = rospy.ServiceProxy('set_goal_location', SetGoalLocation)
+        rospy.wait_for_service('get_bearing_for_goal')
+        self.get_bearing = rospy.ServiceProxy('get_bearing_for_goal', \
+                                              GetBearingForGoal)
 
         # Publish to 'cmd_vel'
         self.cmd_vel_publisher = rospy.Publisher('cmd_vel', Twist, queue_size=1)
@@ -77,13 +83,6 @@ class CacheCons:
         rospy.Subscriber('zumo_prox', ZumoProximities, self.prox_callback)
         #rospy.Subscriber('obstacles', ObstacleArray, self.obstacles_callback)
         rospy.Subscriber('castobstacles', CastObstacleArray, self.castobstacles_callback)
-
-        # Setup the services necessary for homing.
-        rospy.wait_for_service('set_goal')
-        self.set_goal = rospy.ServiceProxy('set_goal_location', SetGoalLocation)
-        rospy.wait_for_service('get_bearing')
-        self.get_bearing = rospy.ServiceProxy('get_bearing_for_goal', \
-                                              GetBearingForGoal)
 
         rospy.on_shutdown(self.shutdown_handler)
 
@@ -123,25 +122,16 @@ class CacheCons:
         self.carried_type = closest_puck.type
         print("carried type: " + str(self.carried_type))
 
-    def maintain_pickup_target(self, cluster_array_msg):
-        """Used for tracking targets to pickup."""
+    def maintain_pickup_or_visit_target(self, cluster_array_msg):
+        """Used for tracking targets to pickup or to visit."""
         candidate = get_closest_puck_to_puck(cluster_array_msg, \
                                              self.target_puck, 0.05)
-        if candidate == None or candidate.type != self.carried_type:
+        if candidate == None or candidate.type != self.target_puck:
             # If there is no candidate or the type has changed then we will
             # indicate that tracking has failed by setting the target to None.
             self.target_puck = None
         else:
             self.target_puck = candidate
-
-    def initiate_random_turn(self):
-        # Set the turn direction as either -1 or 1
-        self.random_turn_dir = random.randint(0,1)
-        if self.random_turn_dir == 0:
-            self.random_turn_dir = -1
-
-        self.random_turn_time = random.randint(self.MIN_TURN_TIME, 
-                                               self.MAX_TURN_TIME)
 
     def clusters_callback(self, cluster_array_msg):
         """This callback is the primary control method of the class."""
@@ -155,11 +145,11 @@ class CacheCons:
         ######################################################################
         cluster_to_visit = None
         for cluster in cluster_array_msg.clusters:
-            size = len(cluster.pucks)
-            if (cluster.type not in cache_sizes) or \
-               (size > cache_sizes[cluster.type]):
+            size = len(cluster.array.pucks)
+            if (cluster.type not in self.cache_sizes) or \
+               (size > self.cache_sizes[cluster.type]):
                 self.transition("VISIT_NEW_CACHE", "Touch the new cache")
-                cluster_sizes[cluster.type] = size
+                self.cache_sizes[cluster.type] = size
                 cluster_to_visit = cluster
 
         ######################################################################
@@ -169,16 +159,14 @@ class CacheCons:
             if cluster_to_visit != None:
                 self.target_puck = get_closest_puck_in_cluster(cluster_to_visit)
             else:
-                # Maintain tracking on the target from last time.
-                self.target_puck = get_closest_puck_to_puck(cluster_array_msg, \
-                                                        self.target_puck, 0.05)
+                self.maintain_pickup_or_visit_target(cluster_array_msg)
             if self.target_puck == None:
                 self.transition("PU_SCAN", "Cache disappeared prior to visit")
             elif get_puck_distance(self.target_puck) < \
                                             self.CLUSTER_CONTACT_DISTANCE:
                 self.transition("DE_BACKUP", "Established new cache")
                 # Capture goal image!
-                self.set_goal(closest_puck.type)
+                self.set_goal(self.target_puck.type)
                 self.target_puck = None
 
         if self.state == "PU_SCAN":
@@ -190,8 +178,7 @@ class CacheCons:
             else:
                 smallest_clust = get_smallest_cluster(cluster_array_msg)
                 # Accept this as the pickup cluster with some chance
-                accept = self.accept_as_pickup_cluster(smallest_clust)
-                if accept:
+                if self.accept_as_pickup_cluster(smallest_clust):
                     self.set_new_pickup_target_from_cluster(smallest_clust)
                     if self.target_puck != None:
                         self.transition("PU_TARGET", "Pick-up target acquired")
@@ -200,7 +187,7 @@ class CacheCons:
             if self.puck_in_gripper:
                 self.transition("DE_SCAN", "Pick-up succeeded")
             else:
-                self.maintain_pickup_target(cluster_array_msg)
+                self.maintain_pickup_or_visit_target(cluster_array_msg)
                 if self.target_puck == None:
                     self.transition("PU_SCAN", "Lost target")
                 elif time_in_state > self.PICK_UP_TIME:
@@ -212,24 +199,25 @@ class CacheCons:
             if self.puck_in_gripper:
                 self.transition("HOMING", "Pick-up succeeded early")
             else:
-                self.maintain_pickup_target(cluster_array_msg)
+                self.maintain_pickup_or_visit_target(cluster_array_msg)
                 if self.target_puck == None:
                     self.transition("PU_TARGET_FINAL", \
                                "Target puck invisible, but almost in")
-                elif time_in_state > self.TARGET_FINAL_TIME:
-                    self.transition("PU_SCAN", "Time out")
 
         elif self.state == "PU_TARGET_FINAL":
             if self.puck_in_gripper:
                 self.transition("HOMING", "Pick-up succeeded")
+            elif time_in_state > self.TARGET_FINAL_TIME:
+                self.transition("PU_SCAN", "Time out")
                 
         elif self.state == "HOMING":
             if not self.puck_in_gripper:
                 self.transition("PU_SCAN", "Somehow lost puck!")
             else:
                 closest_puck = get_closest_puck(cluster_array_msg)
-                if closest_puck.type == self.carried_type and
-                    get_puck_distance(closest_puck) < \
+                if closest_puck != None \
+                    and closest_puck.type == self.carried_type \
+                    and get_puck_distance(closest_puck) < \
                                                 self.CLUSTER_CONTACT_DISTANCE:
                     self.transition("DE_PUSH", "Contacted cluster")
                 elif time_in_state > self.HOMING_TIME:
@@ -244,10 +232,9 @@ class CacheCons:
             print("carried type: " + str(self.carried_type))
             if time_in_state > self.BACKUP_TIME:
                 self.transition("EXILE", "")
-                self.initiate_random_turn()
 
         elif self.state == "EXILE":
-            if time_in_state > self.EXILE_TIME
+            if time_in_state > self.EXILE_TIME:
                 self.transition("PU_SCAN", "Deposit cycle complete")
 
         else:
@@ -273,8 +260,13 @@ class CacheCons:
             twist = move_to_puck(self.target_puck)
 
         elif self.state == "HOMING":
-            bearing = self.get_bearing(self.carried_type)
-            twist = move_towards_bearing(bearing)
+            response = self.get_bearing(self.carried_type)
+            if response.is_valid:
+                twist = move_towards_bearing(response.bearing)
+            else
+                print("Bearing invalid: wandering instead")
+                twist = wander_while_avoiding_castobs( \
+                                                    self.castobstacle_array_msg)
 
         elif self.state == "DE_PUSH" or self.state == "PU_TARGET_FINAL":
             twist = forwards()
@@ -284,8 +276,13 @@ class CacheCons:
 
         elif self.state == "EXILE":
             # Go away from the "goal"
-            bearing = self.get_bearing(self.carried_type) + math.pi
-            twist = move_towards_bearing(bearing)
+            response = self.get_bearing(self.carried_type) + math.pi
+            if response.is_valid:
+                twist = move_towards_bearing(bearing)
+            else:
+                print("Bearing invalid: wandering instead")
+                twist = wander_while_avoiding_castobs( \
+                                                    self.castobstacle_array_msg)
 
         else:
             sys.exit("Unknown state")
@@ -297,5 +294,5 @@ class CacheCons:
         self.cmd_vel_publisher.publish(Twist())
 
 if __name__ == '__main__':
-    prob_seek = ProbSeek()
+    cache_cons = CacheCons()
     rospy.spin()

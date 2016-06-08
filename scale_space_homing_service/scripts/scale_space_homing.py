@@ -170,7 +170,12 @@ def sortMatches(knnmatches, kpCurr, kpGoal):
 #Calulate the homing angle based on the keypoints found in the current and goal images
 def findHomingAngle(kpCurr, desCurr, kpGoal, desGoal, image):
 	bf = cv2.BFMatcher()
-	matches = bf.knnMatch(desCurr,desGoal,k=2)
+#	matches = bf.knnMatch(desCurr,desGoal,k=2)
+        if desCurr == None or desGoal == None:
+            print "\n\n\n\nNONE"
+        if desCurr.empty() or desGoal.empty():
+            print "\n\n\n\nEMPTY"
+	matches = bf.knnMatch(desCurr,desGoal,2)
 
 	contractionMatches, expansionMatches, contractionAngles, expansionAngles = sortMatches(matches, kpCurr, kpGoal)
 

@@ -16,6 +16,9 @@ from scale_space_homing_service.msg import *
 #img_height = 972
 #img_width = 1296/2
 #img_height = 972/2
+inner_radius = None
+
+first_run_calc_offset = True
 
 TWO_PI = 2 * math.pi
 
@@ -67,7 +70,7 @@ def switch_from_octant_zero(theta, p):
 # build a line using Bresenham algorithm
 # Image pixels added to line are then convolved to find gradient over the line
 # Pixels exceeding threshold in the line gradient are returned as obstacle locations
-def detect_collision_in_ray(image, theta, p1, p2):
+def detect_collision_in_ray(image, theta, p1, p2, offset, invert_mask = False):
     # Input line points are warped to octant zero in order to generate the line
     # Pixel positions are warped back to the original octant as they are appended
     # using switch_from_octant_zero
@@ -98,6 +101,8 @@ def detect_collision_in_ray(image, theta, p1, p2):
 
     # Convolve with filter to find image gradient over the line
     filter = [-1,-1,-1,-1,0,1,1,1,1]
+    if invert_mask:
+        filter = [1,1,1,1,0,-1,-1,-1,-1]
     line_grad =  np.convolve(line_col, filter, 'same')
 
     for idx, val in enumerate(line_grad):
@@ -108,12 +113,18 @@ def detect_collision_in_ray(image, theta, p1, p2):
 #                return line_pos[idx]
 #        # The rest of the image has a tighter starting boundary
 #        else:
-        if val > 100 and idx > 5 and idx < line_grad.size-10:
+        if val > 100 and idx > (5 + offset) and idx < line_grad.size-10:
             return line_pos[idx]
 
+    # Return the last value, indicating maximum range
+    return line_pos[len(line_pos) - 1]
+
 def generate_collision_lines(center,inner_rad, outer_rad):
+    global inner_radius
+
     x = center[0]
     y = center[1]
+    inner_radius = inner_rad
 
     # Lines start offset slightly from the inner circle
     # Assume endpoint is another offset from inner circle
@@ -132,161 +143,65 @@ def generate_collision_lines(center,inner_rad, outer_rad):
         p2xr = int( np.cos(theta) * (p2x - x) - np.sin(theta) * (p2y - y) + x )
         p2yr = int( np.sin(theta) * (p2x - x) + np.cos(theta) * (p2y - y) + y )
 
-        lines.append( (theta, p1xr, p1yr, p2xr, p2yr) )
+#        lines.append( (theta, p1xr, p1yr, p2xr, p2yr, 0) )
+        lines.append( [theta, p1xr, p1yr, p2xr, p2yr, 0] )
+                                                      # THE OFFSET FROM FIRST_RUN
 
 
-def find_obstacles_on_all_lines(image, debug = False):
+def find_obstacles_on_all_lines(image_gray, image_debug, debug = False):
+    global first_run_calc_offset
+
     # Iterate over each line and detect edges
     # detect_collision_in_ray will return the first obstacle encountered on a line
     # The angle and distance from image centre are stored to describe the obstacle position (polar coords)
     # Image centre is also reported
 
-    image_gray = image
-
     x = settings.roiCenter[0]
     y = settings.roiCenter[1]
 
+    if debug:
+        cv2.circle(image_debug, (x,y), int(inner_radius), (0,255,0), 2)
+        min_rho = float('inf')
+        for line in lines:
+            collision_pos = detect_collision_in_ray(image_gray, line[0], (line[1],line[2]), (line[3],line[4]), line[5], first_run_calc_offset)
+
+            if collision_pos is not None:
+                rho = np.sqrt((collision_pos[0]-x)**2 + (collision_pos[1]-y)**2)
+                if rho < min_rho:
+                    min_rho = rho
+
     obstacles = []
     for line in lines:
-        collision_pos = detect_collision_in_ray(image_gray, line[0], (line[1],line[2]), (line[3],line[4]))
+        collision_pos = detect_collision_in_ray(image_gray, line[0], (line[1],line[2]), (line[3],line[4]), line[5], first_run_calc_offset)
+
+        offset_to_line = 0  # Used only for first_run_calc_offset
 
         if collision_pos is not None:
             obstacle = CastObstacle()
             obstacle.theta = TWO_PI - line[0]
             obstacle.rho = np.sqrt( (collision_pos[0]-x)**2 + (collision_pos[1]-y)**2 )
-            # AV: Alternative rho value which is distance to the outer circle
-            #obstacle.rho = np.sqrt( (collision_pos[0]-line[3])**2 + (collision_pos[1]-line[4])**2 )
-
             obstacles.append(obstacle)
 
+            # Valid only for first_run_calc_offset
+            if obstacle.rho < inner_radius + 15: # Excluding distant non-self
+                offset_to_line = obstacle.rho - inner_radius + 1
+
             if debug:
-                # Add to our Centre-Of-Mass estimate
-                if obstacle.rho > avg_rho:
-                    com_x = com_x + math.cos(obstacle.theta)
-                    com_y = com_y + math.sin(obstacle.theta)
-                #elif obstacle.rho < avg_rho:
-                #    com_x = com_x - math.cos(obstacle.theta)
-                #    com_y = com_y - math.sin(obstacle.theta)
-                #com_x = com_x + obstacle.rho * math.cos(obstacle.theta)
-                #com_y = com_y + obstacle.rho * math.sin(obstacle.theta)
-
                 if obstacle.rho == min_rho:
-                    cv2.circle(image, collision_pos, 5, (0,0,255), -1)
-                elif obstacle.rho > avg_rho:
-                    cv2.circle(image, collision_pos, 5, (0,255,0), -1)
+                    cv2.circle(image_debug, collision_pos, 5, (0,0,255), -1)
                 else:
-                    cv2.circle(image, collision_pos, 5, (0,0,0), 1)
+                    cv2.circle(image_debug, collision_pos, 5, (0,255,0), -1)
+
+        if first_run_calc_offset:
+            line[5] = offset_to_line
 
 
-                # Show a line indicating the direction of the Centre-Of-Mass
-                com_angle = math.atan2(com_y, com_x)
-                com_draw_x = x + int(200*math.cos(com_angle))
-                com_draw_y = y - int(200*math.sin(com_angle))
-                cv2.line(image, (x, y), (com_draw_x, com_draw_y), (255, 0, 0), 10)
+    if debug:
+        cv2.imshow("DEBUG", image_debug)
+        key = cv2.waitKey(1) & 0xFF
+#        if key == ord("q"):
+#            break
 
-                cv2.imshow("DEBUG", image)
-                key = cv2.waitKey(1) & 0xFF
-
-                if key == ord("q"):
-                    break
-
+    first_run_calc_offset = False
 
     return obstacles
-
-
-if __name__ == '__main__':
-    parser = OptionParser()
-    parser.add_option("-d", "--debug", dest="debug_on", help="enable debug output", default=False, action='store_true')
-    (options, args) = parser.parse_args()
-
-    
-    #rospy.on_shutdown(shutdown_handler)
-
-    # Fetch bubblescope information from the service
-#    rospy.wait_for_service('get_bubblescope_properties')
-#    get_bubblescope_properties = rospy.ServiceProxy('get_bubblescope_properties', GetBubblescopeProperties)
-#    res = get_bubblescope_properties()
-#
-#    if res is not None:
-#        x = int(res.center[0])
-#        y = int(res.center[1])
-#        inner_rad = res.inner_radius
-#        outer_rad = res.outer_radius
-
-    # Get important parameters from the parameter server
-    img_width = rospy.get_param("image_width")
-    img_height = rospy.get_param("image_height")
-    x = rospy.get_param("image_mirror_centre_x")
-    y = rospy.get_param("image_mirror_centre_y")
-    inner_rad = rospy.get_param("image_mirror_inner_radius")
-    outer_rad = rospy.get_param("image_mirror_outer_radius")
-    
-
-    for frame in camera.capture_continuous(raw_capture, format="bgr", use_video_port=True):
-        image = frame.array
-        image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-        #image_edge = cv2.Canny(image,50,200)
-        #kernel = np.ones((7,7),np.uint8)
-        #image_edge = cv2.erode(image_edge,kernel,iterations = 1)
-
-        
-            
-
-        # Iterate over each line and detect edges
-        # detect_collision_in_ray will return the first obstacle encountered on a line
-        # The angle and distance from image centre are stored to describe the obstacle position (polar coords)
-        # Image centre is also reported
-        obstacles = []
-        for line in lines:
-            collision_pos = detect_collision_in_ray(image_gray, line[0], (line[1],line[2]), (line[3],line[4]))
-
-            if collision_pos is not None:
-                obstacle = CastObstacle()
-                obstacle.theta = TWO_PI - line[0]
-                obstacle.rho = np.sqrt( (collision_pos[0]-x)**2 + (collision_pos[1]-y)**2 )
-                # AV: Alternative rho value which is distance to the outer circle
-                #obstacle.rho = np.sqrt( (collision_pos[0]-line[3])**2 + (collision_pos[1]-line[4])**2 )
-
-                obstacles.append(obstacle)
-
-                if options.debug_on:
-                    # Add to our Centre-Of-Mass estimate
-                    if obstacle.rho > avg_rho:
-                        com_x = com_x + math.cos(obstacle.theta)
-                        com_y = com_y + math.sin(obstacle.theta)
-                    #elif obstacle.rho < avg_rho:
-                    #    com_x = com_x - math.cos(obstacle.theta)
-                    #    com_y = com_y - math.sin(obstacle.theta)
-                    #com_x = com_x + obstacle.rho * math.cos(obstacle.theta)
-                    #com_y = com_y + obstacle.rho * math.sin(obstacle.theta)
-
-                    if obstacle.rho == min_rho:
-                        cv2.circle(image, collision_pos, 5, (0,0,255), -1)
-                    elif obstacle.rho > avg_rho:
-                        cv2.circle(image, collision_pos, 5, (0,255,0), -1)
-                    else:
-                        cv2.circle(image, collision_pos, 5, (0,0,0), 1)
-
-        # Publish array of detected obstacles for others to have fun with
-        msg = CastObstacleArray()
-        msg.obstacles = obstacles
-        pub.publish(msg)
-
-        if options.debug_on:
-            # Show a line indicating the direction of the Centre-Of-Mass
-            com_angle = math.atan2(com_y, com_x)
-            com_draw_x = x + int(200*math.cos(com_angle))
-            com_draw_y = y - int(200*math.sin(com_angle))
-            cv2.line(image, (x, y), (com_draw_x, com_draw_y), (255, 0, 0), 10)
-
-            cv2.imshow("DEBUG", image)
-            key = cv2.waitKey(1) & 0xFF
-
-            if key == ord("q"):
-                break
-
-        raw_capture.truncate(0)
-
-        if rospy.is_shutdown():
-            break
