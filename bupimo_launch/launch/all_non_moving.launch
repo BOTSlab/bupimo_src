@@ -25,6 +25,6 @@
     <node pkg="pucks_to_clusters" type="pucks_to_clusters.py" name="pucks_to_clusters" output="screen"/>
 
     <!-- John's combined scale-space-homing + Daniel's ray-casting obstacles-->
-    <node pkg="scale_space_homing_service" type="bubblescope_analysis.py" name="bubblescope_analysis" args="-d" output="screen"/>
+    <node pkg="scale_space_homing_service" type="bubblescope_analysis.py" name="bubblescope_analysis" args="" output="screen"/>
 
 </launch>
