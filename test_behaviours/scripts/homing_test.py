@@ -50,9 +50,9 @@ def working_callback(cluster_array_msg):
 if __name__ == '__main__':
     global pause_interval, move_interval, pause_counter
 
-    do_pause = True
-    pause_interval = 25
-    pause_movetime = 5 
+    do_pause = False
+    pause_interval = 100
+    pause_movetime = 50 
     pause_counter = 0
 
     rospy.init_node('homing_test')
@@ -74,7 +74,11 @@ if __name__ == '__main__':
     # Setup publisher for controlling the robot's movement
     cmd_vel_publisher = rospy.Publisher('cmd_vel', Twist, queue_size=1)
 
-    # Subscribe to the clustered pucks topic
-    rospy.Subscriber('clusters', ClusterArray, clusters_callback)
+    if do_pause:
+        # Subscribe to the clustered pucks topic
+        rospy.Subscriber('clusters', ClusterArray, pausing_callback)
+    else:
+ 
+        rospy.Subscriber('clusters', ClusterArray, working_callback)
     
     rospy.spin()

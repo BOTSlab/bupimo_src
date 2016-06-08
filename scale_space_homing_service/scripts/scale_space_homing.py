@@ -43,7 +43,7 @@ def get_bearing_for_goal(image, goalId):
         kpGoal, desGoal = goalLocationInformation[goalId]
         kpCurr, desCurr = get_kp_and_des_from_image(image)
 
-        bearing =  findHomingAngle(kpCurr, desCurr, kpGoal, desGoal)
+        bearing =  findHomingAngle(kpCurr, desCurr, kpGoal, desGoal, image)
     return bearing
 
 
@@ -123,6 +123,9 @@ def sortMatches(knnmatches, kpCurr, kpGoal):
     contractionAngles = []
     expansionAngles = []
 
+    #totalContractionDist = 0
+    #totalExpansionDist = 0
+
     for m,n in knnmatches:
     	#If the best match is closer (by the threshold ratio) than the second best match then use it
         if m.distance < matchDistanceThresh*n.distance:
@@ -136,18 +139,29 @@ def sortMatches(knnmatches, kpCurr, kpGoal):
             	#print "kpGoal size",currkpGoal.size
             if currkpCurr.size > (currkpGoal.size + scaleDiffThresh):
                 contractionMatches.append(m)
+
+    # Change this to the difference in size between the KPs and it should work
+     #           totalContractionDist += m.distance 
                 #print "contractionAngle: ",rads
                 contractionAngles.append(rads)
             elif currkpCurr.size < (currkpGoal.size - scaleDiffThresh):
                 expansionMatches.append(m)
+     #           totalExpansionDist += m.distance
                 #print "expansionAngle: ",rads
                 expansionAngles.append(rads)
+
+
+    #print "totalContractionDist: ",totalContractionDist
+    #print "totalExpansionDist: ",totalExpansionDist
+
+    #print "normalized contraction dist:",(totalContractionDist/len(contractionMatches))
+    #print "normalized expansion dist:",(totalExpansionDist/len(expansionMatches))
 
     return contractionMatches, expansionMatches, contractionAngles, expansionAngles
 
 
 #Calulate the homing angle based on the keypoints found in the current and goal images
-def findHomingAngle(kpCurr, desCurr, kpGoal, desGoal):
+def findHomingAngle(kpCurr, desCurr, kpGoal, desGoal, image):
 	bf = cv2.BFMatcher()
 	matches = bf.knnMatch(desCurr,desGoal,k=2)
 
@@ -158,6 +172,22 @@ def findHomingAngle(kpCurr, desCurr, kpGoal, desGoal):
             print "Total number of \'good\' Matches: "+str(len(contractionMatches)+len(expansionMatches))
 	    print "contractionMatches size: " +str(len(contractionMatches))
 	    print "expansionMatches size: "+str(len(expansionMatches))
+
+            imageColor = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+            for match in contractionMatches:
+                kp = kpCurr[match.queryIdx]
+                x,y = kp.pt
+                cv2.circle(imageColor, (int(x),int(y)),2, (0,255,0))
+
+
+            for match in expansionMatches:
+                kp = kpCurr[match.queryIdx]
+                x,y = kp.pt
+                cv2.circle(imageColor, (int(x),int(y)),2, (0,0,255))
+
+            cv2.imshow("Matchess", imageColor)
+            key = cv2.waitKey(10) & 0xFF
+        
 
 	homingAngle = calcHomingAngle(contractionAngles, expansionAngles)
 
