@@ -30,7 +30,7 @@ goalLocationInformation = [([0],[0])]*nGoalLocations
 mask = np.zeros((0,0),np.uint8)
 
 #define the thickness (in pixels) of the ring used for masking the above horizon KP search space
-maskRingWidth = 40
+maskRingWidth = 60
 
 #Amount of pixels to ignore on the outeer ring of the image
 #This is to help not include the lens edge KPs in the images
@@ -60,8 +60,9 @@ def set_goal_location(image, goalId):
             x, y = kp.pt
             cv2.circle(imageColor, (int(x),int(y)),2, (0,255,0))
  
+        cv2.imwrite("test.jpg", imageColor)
         cv2.imshow("KPs", imageColor)
-        key = cv2.waitKey(1) & 0xFF
+        key = cv2.waitKey(0) & 0xFF
         
         if key == ord("q"):
             cv2.destroyAllWindows()
