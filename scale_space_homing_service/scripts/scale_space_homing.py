@@ -24,7 +24,7 @@ surf = cv2.SURF(surfHessianThresh)
 #Number of goal locations to allow for
 # 8 represents the number of colors the Pixy camera can be configured to detect
 nGoalLocations = 8
-goalLocationInformation = [([0],[0])]*nGoalLocations
+goalLocationInformation = [(([0],[0]),False)]*nGoalLocations
 
 
 mask = np.zeros((0,0),np.uint8)
@@ -38,23 +38,30 @@ outerLensBufferPixels = 5
 
 def get_bearing_for_goal(image, goalId):
     bearing = 0
+    isValid = False
 
     if goalId in range(0,nGoalLocations):
-        kpGoal, desGoal = goalLocationInformation[goalId]
-        kpCurr, desCurr = get_kp_and_des_from_image(image)
 
-        bearing =  findHomingAngle(kpCurr, desCurr, kpGoal, desGoal, image)
-    return bearing
+        #This will be true if we have taken keypoints at a location
+        isValid = goalLocationInformation[goalId][1]
+
+
+        kpGoal, desGoal = goalLocationInformation[goalId][0]
+        if isValid and len(kpGoal) > 0:
+            kpCurr, desCurr = get_kp_and_des_from_image(image)
+            bearing, isValid  =  findHomingAngle(kpCurr, desCurr, kpGoal, desGoal, image)
+
+    return bearing, isValid
 
 
 def set_goal_location(image, goalId):
     if goalId in range(0,nGoalLocations):        
-        goalLocationInformation[goalId] = get_kp_and_des_from_image(image)
+        goalLocationInformation[goalId] = (get_kp_and_des_from_image(image),True)
 
     #Just for testing, remove this
     if settings.debug:
         print "SET GOAL LOCATION DEBUG"
-        kps,des = goalLocationInformation[goalId]
+        kps,des = goalLocationInformation[goalId][0]
         imageColor = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
         for kp in kps:
             x, y = kp.pt
@@ -194,13 +201,18 @@ def findHomingAngle(kpCurr, desCurr, kpGoal, desGoal, image):
             key = cv2.waitKey(10) & 0xFF
         
 
-	homingAngle = calcHomingAngle(contractionAngles, expansionAngles)
+        homingAngle = 0
+        isValid = True
 
-	
-    	if settings.debug:
-            homingAngleDegrees = degrees(homingAngle)
-	    if homingAngleDegrees < 0:
-       	        homingAngleDegrees += 360
-   	    print "Homing Direction (degrees): ",homingAngleDegrees
+        if len(contractionMatches) == 0 and len(expansionMatches) == 0:
+            isVlid = False
+        else:
+            homingAngle = calcHomingAngle(contractionAngles, expansionAngles)
 
-	return homingAngle
+    	    if settings.debug:
+                homingAngleDegrees = degrees(homingAngle)
+	        if homingAngleDegrees < 0:
+       	            homingAngleDegrees += 360
+   	        print "Homing Direction (degrees): ",homingAngleDegrees
+
+	return homingAngle, isValid

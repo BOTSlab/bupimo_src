@@ -23,11 +23,10 @@ from obstacle_detector.msg import *
 isFindingBearing = False
 
 def handle_get_bearing_for_goal(req):
-    #TODO: call the proper method in scale_space_homing
     isFindingBearing = True
     goalId = req.goalId
     res = GetBearingForGoalResponse()
-    res.bearing = ss.get_bearing_for_goal(image, goalId)
+    res.bearing, res.is_valid = ss.get_bearing_for_goal(image, goalId)
     isFindingBearing = False
     return res
 
