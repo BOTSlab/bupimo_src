@@ -14,8 +14,8 @@ import matplotlib.mlab as mlab
 import numpy as np
 from numpy.ma import masked
 
-filename_in =   'robot_1_known_correspondences.csv'
-filename_out =  'robot_1_interpolated_correspondences.csv'
+filename_in =   'robot_7_known_correspondences.csv'
+filename_out =  'robot_7_interpolated_correspondences.csv'
 
 def main():
     interpolate((318, 198))
