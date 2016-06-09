@@ -11,6 +11,8 @@ import rospy, math
 import settings
 
 from scale_space_homing_service.msg import *
+from bupimo_utils.angles import constrain_angle
+
 # TODO: these should come from the parameter server
 #img_width = 1296
 #img_height = 972
@@ -178,7 +180,7 @@ def find_obstacles_on_all_lines(image_gray, image_debug, debug = False):
 
         if collision_pos is not None:
             obstacle = CastObstacle()
-            obstacle.theta = TWO_PI - line[0]
+            obstacle.theta = constrain_angle(TWO_PI - line[0])
             obstacle.rho = np.sqrt( (collision_pos[0]-x)**2 + (collision_pos[1]-y)**2 )
             obstacles.append(obstacle)
 
