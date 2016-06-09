@@ -17,11 +17,10 @@ PI_OVER_2 = math.pi / 2.0
 # in 'wander_while_avoiding'.
 last_wander_angular = 0
 
-# List containing a count for which the index (of 'castobstacles') which has
-# the miniumum rho ...
-min_rho_accum = None
-
-wander_state = None
+# Dictionary containing a count for the forward 'theta' values of castobstacles
+min_rho_accum = {}
+wander_state = "AVOID"
+time_in_random = 0
 
 def forwards():
     twist = Twist()
@@ -131,35 +130,33 @@ def wander_while_avoiding_castobs(castobstacle_array_msg):
         # The message has probably just not been published yet, go forwards
         return forwards()
 
-    # First get the closest cast obstacle.  We will turn away from this if
-    # it is too close.
+    # First get the closest cast obstacle in the front.
     closest_obs = None
     closest_rho = float('inf')
-    closest_index = None
-    n = len(castobstacle_array_msg.obstacles)
-    for i in range(n):
-        obs = castobstacle_array_msg.obstacles[i]
-        if obs.rho < closest_rho:
+    for obs in castobstacle_array_msg.obstacles:
+        if obs.theta < PI_OVER_2 and obs.theta > -PI_OVER_2 \
+            and obs.rho < closest_rho:
             closest_obs = obs
             closest_rho = obs.rho
-            closest_index = i
     assert closest_obs != None
     
-    if min_rho_accum == None:
-        # Initialize globals used here
-        min_rho_accum = [0 for i in range(n)] # All zeros
-        wander_state = "AVOID"
-        time_in_random = 0
+    if len(min_rho_accum) == 0:
+        # Initialize accumulator array
+        for obs in castobstacle_array_msg.obstacles:
+            # Include only front directions
+            if obs.theta < PI_OVER_2 and obs.theta > -PI_OVER_2:
+                min_rho_accum[obs.theta] = 0
 
     # Print accumulator
-    #print(min_rho_accum)
+    print(min_rho_accum)
 
     if wander_state == "AVOID":
         # Add to accumulator
-        for i in range(n):
-            if i == closest_index:
-                min_rho_accum[i] += 1
-    else:
+        for obs in castobstacle_array_msg.obstacles:
+            if obs == closest_obs:
+                min_rho_accum[obs.theta] += 1
+
+    else: # RANDOM state
         time_in_random += 1
 
     # State transition
@@ -168,7 +165,9 @@ def wander_while_avoiding_castobs(castobstacle_array_msg):
         time_in_random = 0
     elif wander_state == "RANDOM" and time_in_random == 5:
         wander_state = "AVOID"
-        min_rho_accum = [0 for i in range(n)] # All zeros
+        # Zero accumulator dictionary
+        for obs in castobstacle_array_msg.obstacles:
+            min_rho_accum[obs.theta] = 0
 
     # Behaviour for state
     if wander_state == "AVOID":

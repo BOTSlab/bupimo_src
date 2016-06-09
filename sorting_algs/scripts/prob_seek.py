@@ -16,7 +16,7 @@ from obstacle_detector.msg import CastObstacleArray
 from geometry_msgs.msg import Twist
 
 from bupimo_utils.pucks_and_clusters import get_puck_distance
-from bupimo_utils.pucks_and_clusters import get_smallest_cluster
+from bupimo_utils.pucks_and_clusters import get_closest_cluster
 from bupimo_utils.pucks_and_clusters import get_closest_puck_in_cluster
 from bupimo_utils.pucks_and_clusters import get_closest_puck
 from bupimo_utils.pucks_and_clusters import get_closest_puck_to_puck
@@ -186,10 +186,11 @@ class ProbSeek:
                 else:
                     self.transition("DE_SCAN", "Somehow acquired puck!")
             else:
-                smallest_clust = get_smallest_cluster(cluster_array_msg)
+                # We consider only the cluster that is closest.
+                closest_clust = get_closest_cluster(cluster_array_msg)
                 # Accept this as the pickup cluster with some chance
-                if self.accept_as_pickup_cluster(smallest_clust):
-                    self.set_new_pickup_target_from_cluster(smallest_clust)
+                if self.accept_as_pickup_cluster(closest_clust):
+                    self.set_new_pickup_target_from_cluster(closest_clust)
                     if self.target_puck != None:
                         self.transition("PU_TARGET", "Pick-up target acquired")
 
@@ -232,8 +233,11 @@ class ProbSeek:
                                                 self.CLUSTER_CONTACT_DISTANCE:
                     self.transition("DE_PUSH", "Non-targeted cluster --- Ok!")
                 else:
-                    big_c = get_largest_cluster_of_type(cluster_array_msg, \
-                                                        self.carried_type)
+                    #big_c = get_largest_cluster_of_type(cluster_array_msg, \
+                    #                                    self.carried_type)
+                    # We consider only the cluster that is closest.
+                    closest_clust = get_closest_cluster(cluster_array_msg)
+                    
                     # Accept this as the deposit cluster with some chance
                     if self.accept_as_deposit_cluster(big_c):
                         self.target_puck = get_closest_puck_in_cluster(big_c)

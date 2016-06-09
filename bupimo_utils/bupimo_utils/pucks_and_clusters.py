@@ -72,6 +72,18 @@ def get_smallest_cluster(cluster_array_msg):
             smallest_n = n
     return smallest_cluster
 
+def get_closest_cluster(cluster_array_msg):
+    """The closest cluster is the one that contains the closest puck."""
+    closest_cluster = None
+    closest_dist = float('inf')
+    for cluster in cluster_array_msg.clusters:
+        for puck in cluster.array.pucks:
+            dist = math.sqrt(puck.position.x**2 + puck.position.y**2)
+            if dist < closest_dist:
+                closest_dist = dist
+                closest_cluster = cluster
+    return closest_cluster
+
 def get_largest_cluster_of_type(cluster_array_msg, puck_type):
     largest_cluster = None
     largest_n = 0
