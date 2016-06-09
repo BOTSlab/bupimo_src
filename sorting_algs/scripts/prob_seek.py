@@ -76,7 +76,7 @@ class ProbSeek:
 
     def prox_callback(self, prox_msg):
         """The front prox. sensor will tell us if a puck is in the gripper."""
-        self.puck_in_gripper = prox_msg.front <= 8
+        self.puck_in_gripper = prox_msg.front <= 10
 
 #    def obstacles_callback(self, obstacle_array_msg):
 #        self.obstacle_array_msg = obstacle_array_msg
@@ -222,8 +222,11 @@ class ProbSeek:
                 self.transition("PU_SCAN", "Time out")
                 
         elif self.state == "DE_SCAN":
-            if not self.puck_in_gripper:
+            if self.puck_in_gripper and self.carried_type == None:
+                self.transition("DE_BACKUP", "Get rid of strange puck!")
+            elif not self.puck_in_gripper:
                 self.transition("PU_SCAN", "Somehow lost puck!")
+                self.carried_type = None
             else:
                 print("DE_SCAN: carried type: " + str(self.carried_type))
                 closest_puck = get_closest_puck(cluster_array_msg)
