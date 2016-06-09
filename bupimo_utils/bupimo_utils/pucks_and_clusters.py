@@ -48,10 +48,13 @@ def get_closest_puck_to_puck(cluster_array_msg, ref_puck, max_distance):
             dx = ref_puck.position.x - puck.position.x
             dy = ref_puck.position.y - puck.position.y
             dist = math.sqrt(dx*dx + dy*dy)
-            if dist < max_distance and dist < closest_dist:
+            if dist < closest_dist:
                 closest_puck = puck
                 closest_dist = dist
-    return closest_puck
+    if closest_dist < max_distance:
+        return closest_puck
+    else:
+        return None
 
 def get_closest_puck_distance(cluster_array_msg):
     closest_dist = float('inf')

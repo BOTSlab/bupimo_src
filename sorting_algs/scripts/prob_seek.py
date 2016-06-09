@@ -40,6 +40,8 @@ class ProbSeek:
         self.random_turn_time = 0
         #self.obstacle_array_msg = None
         self.castobstacle_array_msg = None
+        self.nongripper_time = 0
+        self.prox_below_threshold = False
 
         # Parameters (move to ROS parameter server?)
         self.PICK_UP_TIME = 100
@@ -76,7 +78,8 @@ class ProbSeek:
 
     def prox_callback(self, prox_msg):
         """The front prox. sensor will tell us if a puck is in the gripper."""
-        self.puck_in_gripper = prox_msg.front <= 10
+#        print("prox_msg.front: " + str(prox_msg.front))
+        self.prox_below_threshold = prox_msg.front <= 8
 
 #    def obstacles_callback(self, obstacle_array_msg):
 #        self.obstacle_array_msg = obstacle_array_msg
@@ -117,33 +120,31 @@ class ProbSeek:
 
         return accept
             
-    def set_new_pickup_target_from_cluster(self, cluster):
-        closest_puck = get_closest_puck_in_cluster(cluster)
-        assert closest_puck != None
-        self.target_puck = closest_puck
-        self.carried_type = closest_puck.type
-        print("carried type: " + str(self.carried_type))
+#    def set_new_pickup_target_from_cluster(self, cluster):
+#        closest_puck = get_closest_puck_in_cluster(cluster)
+#        assert closest_puck != None
+#        self.target_puck = closest_puck
 
     def maintain_pickup_target(self, cluster_array_msg):
         candidate = get_closest_puck_to_puck(cluster_array_msg, \
-                                             self.target_puck, 0.05)
-        if candidate == None or candidate.type != self.target_puck:
+                                             self.target_puck, 100000.10)
+        if candidate == None or candidate.type != self.target_puck.type:
             # If there is no candidate or the type has changed then we will
             # indicate that tracking has failed by setting the target to None.
-            self.target_puck = None
+            return None
         else:
-            self.target_puck = candidate
+            return candidate
 
     def maintain_deposit_target(self, cluster_array_msg):
         candidate = get_closest_puck_to_puck(cluster_array_msg, \
-                                             self.target_puck, 0.05)
+                                             self.target_puck, 100000.05)
         if candidate == None or candidate.type != self.carried_type:
             # If there is no candidate or the type is not the carried type 
             # then we indicate that tracking has failed by setting the target
             # to None.
-            self.target_puck = None
+            return None
         else:
-            self.target_puck = candidate
+            return candidate
 
     def initiate_random_turn(self):
         # Set the turn direction as either -1 or 1
@@ -175,30 +176,46 @@ class ProbSeek:
         self.current_step = cluster_array_msg.header.seq
         time_in_state = self.current_step - self.state_start_step
 
+
+        if self.prox_below_threshold: # Indicating "possibly" a puck
+            self.nongripper_time = 0
+        else:
+            self.nongripper_time += 1
+
+        self.puck_in_gripper = (self.nongripper_time < 10)
+            
+
         ######################################################################
         # Handle state transitions
         ######################################################################
         print("state: " + self.state + ", time_in_state: " + str(time_in_state))
         if self.state == "PU_SCAN":
+            self.carried_type = None
             if self.puck_in_gripper:
-                if self.carried_type == None:
-                    self.transition("DE_BACKUP", "Get rid of strange puck!")
-                else:
-                    self.transition("DE_SCAN", "Somehow acquired puck!")
+                #if self.carried_type == None:
+                self.transition("DE_BACKUP", "Get rid of strange puck!")
+                #else:
+                #    self.transition("DE_SCAN", "Somehow acquired puck!")
             else:
                 # We consider only the cluster that is closest.
-                closest_clust = get_closest_cluster(cluster_array_msg)
+                closest_c = get_closest_cluster(cluster_array_msg)
                 # Accept this as the pickup cluster with some chance
-                if self.accept_as_pickup_cluster(closest_clust):
-                    self.set_new_pickup_target_from_cluster(closest_clust)
+                if self.accept_as_pickup_cluster(closest_c):
+                    self.target_puck = get_closest_puck_in_cluster(closest_c)
                     if self.target_puck != None:
                         self.transition("PU_TARGET", "Pick-up target acquired")
 
         elif self.state == "PU_TARGET":
+            print("target type: " + str(self.target_puck.type))
+
             if self.puck_in_gripper:
                 self.transition("DE_SCAN", "Pick-up succeeded")
+                self.carried_type = self.target_puck.type
+                print("carried type: " + str(self.carried_type))
             else:
-                self.maintain_pickup_target(cluster_array_msg)
+                print(" IN PU_TARGET : target == None " + str(self.target_puck == None))
+                self.target_puck = self.maintain_pickup_target( \
+                                                            cluster_array_msg)
                 if self.target_puck == None:
                     self.transition("PU_SCAN", "Lost target")
                 elif time_in_state > self.PICK_UP_TIME:
@@ -209,24 +226,28 @@ class ProbSeek:
         elif self.state == "PU_TARGET_CLOSE":
             if self.puck_in_gripper:
                 self.transition("DE_SCAN", "Pick-up succeeded early")
+                self.carried_type = self.target_puck.type
+                print("carried type: " + str(self.carried_type))
             else:
-                self.maintain_pickup_target(cluster_array_msg)
-                if self.target_puck == None:
+                result = self.maintain_pickup_target(cluster_array_msg)
+                if result == None:
                     self.transition("PU_TARGET_FINAL", \
                                "Target puck invisible, but almost in")
 
         elif self.state == "PU_TARGET_FINAL":
             if self.puck_in_gripper:
                 self.transition("DE_SCAN", "Pick-up succeeded")
+                self.carried_type = self.target_puck.type
+                print("carried type: " + str(self.carried_type))
             elif time_in_state > self.TARGET_FINAL_TIME:
                 self.transition("PU_SCAN", "Time out")
                 
         elif self.state == "DE_SCAN":
             if self.puck_in_gripper and self.carried_type == None:
                 self.transition("DE_BACKUP", "Get rid of strange puck!")
-            elif not self.puck_in_gripper:
-                self.transition("PU_SCAN", "Somehow lost puck!")
-                self.carried_type = None
+#            elif not self.puck_in_gripper:
+#                self.transition("PU_SCAN", "Somehow lost puck!")
+#                self.carried_type = None
             else:
                 print("DE_SCAN: carried type: " + str(self.carried_type))
                 closest_puck = get_closest_puck(cluster_array_msg)
@@ -253,7 +274,8 @@ class ProbSeek:
             if not self.puck_in_gripper:
                 self.transition("PU_SCAN", "Somehow lost puck!")
             else:
-                self.maintain_deposit_target(cluster_array_msg)
+                self.target_puck = self.maintain_deposit_target( \
+                                                            cluster_array_msg)
                 if self.target_puck == None:
                     self.transition("DE_SCAN", "Lost target")
                 elif get_puck_distance(self.target_puck) < \

@@ -94,7 +94,7 @@ def move_to_puck(puck):
     twist = Twist()
     if puck != None:
         twist.linear.x = FORWARD_SPEED #0.5# + 1.0 * puck.position.x
-        twist.angular.z = 20.0 * puck.position.y
+        twist.angular.z = 10.0 * puck.position.y
 
     return twist
 
@@ -160,7 +160,7 @@ def wander_while_avoiding_castobs(castobstacle_array_msg):
         time_in_random += 1
 
     # State transition
-    if wander_state == "AVOID" and max(min_rho_accum) == 20:
+    if wander_state == "AVOID" and max(min_rho_accum.values()) == 20:
         wander_state = "RANDOM"
         time_in_random = 0
     elif wander_state == "RANDOM" and time_in_random == 5:
