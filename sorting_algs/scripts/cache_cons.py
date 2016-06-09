@@ -263,7 +263,7 @@ class CacheCons:
             response = self.get_bearing(self.carried_type)
             if response.is_valid:
                 twist = move_towards_bearing(response.bearing)
-            else
+            else:
                 print("Bearing invalid: wandering instead")
                 twist = wander_while_avoiding_castobs( \
                                                     self.castobstacle_array_msg)
