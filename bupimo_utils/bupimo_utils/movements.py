@@ -148,7 +148,7 @@ def wander_while_avoiding_castobs(castobstacle_array_msg):
                 min_rho_accum[obs.theta] = 0
 
     # Print accumulator
-    print(min_rho_accum)
+    #print(min_rho_accum)
 
     if wander_state == "AVOID":
         # Add to accumulator

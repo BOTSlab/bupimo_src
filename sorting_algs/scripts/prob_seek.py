@@ -239,7 +239,8 @@ class ProbSeek:
                     clust = get_closest_cluster(cluster_array_msg)
                     # Accept this as the deposit cluster with some chance, but
                     # only if its the right type.
-                    if clust.type == self.carried_type \
+                    if clust != None \
+                        and clust.type == self.carried_type \
                         and self.accept_as_deposit_cluster(clust):
                         self.target_puck = get_closest_puck_in_cluster(clust)
                         if self.target_puck != None:
