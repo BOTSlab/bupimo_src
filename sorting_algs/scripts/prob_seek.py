@@ -236,11 +236,12 @@ class ProbSeek:
                     #big_c = get_largest_cluster_of_type(cluster_array_msg, \
                     #                                    self.carried_type)
                     # We consider only the cluster that is closest.
-                    closest_clust = get_closest_cluster(cluster_array_msg)
-                    
-                    # Accept this as the deposit cluster with some chance
-                    if self.accept_as_deposit_cluster(big_c):
-                        self.target_puck = get_closest_puck_in_cluster(big_c)
+                    clust = get_closest_cluster(cluster_array_msg)
+                    # Accept this as the deposit cluster with some chance, but
+                    # only if its the right type.
+                    if clust.type == self.carried_type \
+                        and self.accept_as_deposit_cluster(clust):
+                        self.target_puck = get_closest_puck_in_cluster(clust)
                         if self.target_puck != None:
                             self.transition("DE_TARGET", "Deposit target acq'd")
 
