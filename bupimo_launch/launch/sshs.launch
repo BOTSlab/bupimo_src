@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- The following loads parameters which may need to be customized for
+         each robot.  Hence, they are placed in an external file:
+         /home/pi/robot_params.yaml -->
+    <rosparam command="load" file="/home/pi/robot_params.yaml" />
+
+    <!-- John's combined scale-space-homing + Daniel's ray-casting obstacles-->
+    <node pkg="scale_space_homing_service" type="bubblescope_analysis.py" name="bubblescope_analysis" args="-d" output="screen"/>
+
+</launch>
