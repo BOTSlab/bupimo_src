@@ -5,6 +5,6 @@
          /home/pi/robot_params.yaml -->
     <rosparam command="load" file="/home/pi/robot_params.yaml" />
 
-    <node pkg="picamera_ops" type="main.py" name="picamera_ops" args="" output="screen"/>
+    <node pkg="picamera_ops" type="main.py" name="picamera_ops" args="-d" output="screen"/>
 
 </launch>
