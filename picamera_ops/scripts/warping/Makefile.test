@@ -1,0 +1,21 @@
+#
+# Generates test module using SWIG.  From:
+# http://stackoverflow.com/questions/5251042/passing-python-array-to-c-function-with-swig
+#
+PYTHON_CFLAGS = `pkg-config --cflags python`
+PYTHON_LIBS = `pkg-config --libs python`
+OBJS = test.o test_wrap.o
+MODULE_NAME = test
+LIB = _$(MODULE_NAME).so
+
+all: $(LIB)
+
+test_wrap.o: test.i test.o
+	swig -python -c++ test.i
+	g++ -c test_wrap.cxx $(PYTHON_CFLAGS)
+
+$(LIB): test_wrap.o
+	g++ -shared $(OBJS) -o $(LIB) $(PYTHON_LIBS)
+
+clean:
+	rm -f $(OBJS) $(LIB) $(MODULE_NAME)_wrap.cxx $(MODULE_NAME).py $(MODULE_NAME).pyc

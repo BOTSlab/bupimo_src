@@ -1,7 +1,0 @@
-<launch>
-    <param name = "image_mirror_centre_x" value="500"/>
-
-    <param name = "image_mirror_centre_y" value="500"/>
-
-    <node pkg="apriltags_ros" type="apriltag_detector" name="apriltag_detector" output="screen"/>
-</launch>

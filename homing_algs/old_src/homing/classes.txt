@@ -1,0 +1,12 @@
+Class structure for (some) of the homing class.
+
+- HomingAlg
+    - TransHomingAlg
+        - BM
+        - MFDID
+    - RotHomingAlg
+        - DIDCompass
+    - TotalHoming
+        - TwoStepHomingAlg
+        - WarpingAlg
+        - HiSSAlg

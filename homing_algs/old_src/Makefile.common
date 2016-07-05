@@ -1,0 +1,39 @@
+CXX = g++ -g
+VHDIR = ..
+BINDIR = ../../bin
+IMGDIR = $(VHDIR)/img
+UTILSDIR = $(VHDIR)/utils
+SIMDIR = $(VHDIR)/sim
+HOMINGDIR = $(VHDIR)/homing
+HISSDIR = $(VHDIR)/homing/hiss
+RNGDIR = $(VHDIR)/other/rng
+CAMERADIR = $(VHDIR)/camera
+OTHERDIR = $(HOME)/include
+LIB_TAG = d
+CPPFLAGS = -pthread `pkg-config --cflags opencv` `pkg-config --cflags libconfig++` \
+		-I$(IMGDIR) -I$(UTILSDIR) -I$(SIMDIR) -I$(HOMINGDIR) -I$(HISSDIR) -I$(RNGDIR) -I$(CAMERADIR) -I$(OTHERDIR)
+#CPPFLAGS = -pthread `pkg-config --cflags opencv` `pkg-config --cflags libconfig++` \
+#		`pkg-config --cflags libglog` \
+#		-I$(IMGDIR) -I$(UTILSDIR) -I$(SIMDIR) -I$(HOMINGDIR) -I$(HISSDIR) -I$(RNGDIR) -I$(CAMERADIR) -I$(OTHERDIR)
+LDFLAGS = -L/usr/lib
+LDLIBS = -pthread -lm \
+		`pkg-config --libs opencv` `pkg-config --libs libconfig++`
+#LDLIBS = -pthread -lm \
+#		`pkg-config --libs opencv` `pkg-config --libs libconfig++` \
+#		`pkg-config --libs libglog`
+
+# For SiftExtractor
+#VLFEAT = /usr/local/vlfeat
+#CPPFLAGS += -I$(VLFEAT)/vl
+#LDFLAGS += -L$(VLFEAT)/bin/glnxa64 
+#LDLIBS += -lvl
+
+# For optimization
+#CFLAGS += -O3
+#CPPFLAGS += -O3
+
+# For valgrind runs
+#CPPFLAGS += -g -O0
+
+# For gdb runs
+#CPPFLAGS += -ggdb -O0

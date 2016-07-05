@@ -8,12 +8,11 @@ Andrew Vardy
 
 import rospy, math
 from bupimo_msgs.msg import ClusterArray
-from scale_space_homing_service.srv import SetGoalLocation
-from scale_space_homing_service.srv import GetBearingForGoal
+from picamera_ops.srv import SetGoalLocation
+from picamera_ops.srv import GetBearingForGoal
 from geometry_msgs.msg import Twist
 
-from bupimo_utils.movements import move_to_puck
-from bupimo_utils.movements import move_towards_bearing
+from bupimo_utils.movements import move_forwards_to_bearing
 
 def pausing_callback(cluster_array_msg):
     global pause_counter
@@ -43,7 +42,7 @@ def working_callback(cluster_array_msg):
         print("Service problem: " + str(excep))
 
     # Move towards the bearing found
-    twist = move_towards_bearing(response.bearing)
+    twist = move_forwards_to_bearing(response.bearing)
 
     cmd_vel_publisher.publish(twist)
         
@@ -51,8 +50,8 @@ if __name__ == '__main__':
     global pause_interval, move_interval, pause_counter
 
     do_pause = False
-    pause_interval = 100
-    pause_movetime = 50 
+    pause_interval = 20
+    pause_movetime = 10 
     pause_counter = 0
 
     rospy.init_node('homing_test')

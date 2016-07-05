@@ -98,15 +98,23 @@ def move_to_puck(puck):
 
     return twist
 
+def move_forwards_to_bearing(bearing):
+    """Generate a twist message that moves us towards the given bearing, always travelling forwards."""
+    goalRy = math.sin(bearing)
+    twist = Twist()
+    twist.linear.x = FORWARD_SPEED
+    twist.angular.z = ROT_SPEED * goalRy
+    return twist
 
 def move_towards_bearing(bearing):
-    """Generate a twist message that moves us towards the given bearing, but notgoing backwards."""
+    """Generate a twist message that moves us towards the given bearing."""
     goalRx = math.cos(bearing)
     goalRy = math.sin(bearing)
     twist = Twist()
     twist.linear.x = FORWARD_SPEED * goalRx
     twist.angular.z = ROT_SPEED * goalRy
     return twist
+
 
 #
 #def move_towards_bearing_aggressive(bearing):
