@@ -55,7 +55,7 @@ class zumo_comms_node(object):
 
 	def ReceivedLine(self,  line):
             #print("LINE: " + line)
-            words = line.split(" ")
+            words = line.split("\t")
             #print("words: ")
             #print(words)
             if len(line) > 0:
@@ -76,7 +76,7 @@ class zumo_comms_node(object):
 
                 self.tf_and_odom(zumo_msg)
 
-        def tf_and_odom(zumo_msg):
+        def tf_and_odom(self, zumo_msg):
             """Broadcast tf transform and publish odometry.  It seems a little
             redundant to do both, but both are needed if we want to use the ROS
             navigation stack."""
@@ -95,11 +95,11 @@ class zumo_comms_node(object):
             odom.pose.pose.position = trans
             odom.pose.pose.orientation = rot
             odom.child_frame_id = 'base_link'
-            odom.twist.twist = stored_twist
+            odom.twist.twist = self.stored_twist
 		
         def TwistCallback(self, twist):
-            v = twistMessage.linear.x   # Forward speed
-            w = twistMessage.angular.z  # Angular speed
+            v = twist.linear.x   # Forward speed
+            w = twist.angular.z  # Angular speed
 
             # Send to Zumo
             message = str(v) + ':' + str(w) + ':0'

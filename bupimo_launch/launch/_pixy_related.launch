@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<launch>
+	<node name="pixy_node" pkg="pixy_node" type="pixy_node" output="screen">
+		<param name="use_servos" value="false" />
+		<param name="rate" value="10.0" />
+	</node>
+
+    <node pkg="blocks_to_pucks_obstacles" type="blocks_to_pucks_obstacles.py" name="blocks_to_pucks_obstacles" output="screen">
+        <param name = "duplicate_puck_threshold" value="0.02"/>
+    </node>
+
+    <node pkg="pucks_to_clusters" type="pucks_to_clusters.py" name="pucks_to_clusters" output="screen"/>
+</launch>

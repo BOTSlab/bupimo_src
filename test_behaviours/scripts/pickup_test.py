@@ -7,7 +7,7 @@ Andrew Vardy
 
 import rospy, math
 from bupimo_msgs.msg import ClusterArray
-from bupimo_msgs.msg import ZumoProximities
+from bupimo_msgs.msg import ZumoData
 from geometry_msgs.msg import Twist
 
 from bupimo_utils.pucks_and_clusters import get_closest_puck
@@ -15,10 +15,10 @@ from bupimo_utils.pucks_and_clusters import get_closest_puck_to_puck
 from bupimo_utils.movements import move_to_puck
 from bupimo_utils.movements import forwards
 
-def prox_callback(prox_msg):
+def zumo_callback(zumo_msg):
     """The front prox. sensor will tell us if a puck is in the gripper."""
     global puck_in_gripper
-    puck_in_gripper = prox_msg.front <= 8
+    puck_in_gripper = zumo_msg.frontProximity <= 8
 
 def transition(new_state, message):
     global state
@@ -74,7 +74,7 @@ if __name__ == '__main__':
     global puck_in_gripper, state, target_puck
 
     # We need to initialize this here as the Zumo is turned on afterwards,
-    # so 'prox_callback' (which sets puck_in_gripper) will not be immediately
+    # so 'zumo_callback' (which sets puck_in_gripper) will not be immediately
     # called.
     puck_in_gripper = False
     state = "SCAN"
@@ -85,6 +85,6 @@ if __name__ == '__main__':
     cmd_vel_publisher = rospy.Publisher('cmd_vel', Twist, queue_size=1)
 
     rospy.Subscriber('clusters', ClusterArray, clusters_callback)
-    rospy.Subscriber('zumo_prox', ZumoProximities, prox_callback)
+    rospy.Subscriber('zumo_data', ZumoData, zumo_callback)
     
     rospy.spin()

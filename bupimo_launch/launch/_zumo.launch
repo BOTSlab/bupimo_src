@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<launch>
+    <node pkg="zumo_comms_node" type="zumo_comms_node.py" name="zumo_comms_node" output="screen"/>
+</launch>

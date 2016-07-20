@@ -1,4 +1,0 @@
-<?xml version="1.0"?>
-<launch>
-    <node pkg="serial_comms_node" type="serial_comms_node.py" name="serial_comms_node" output="screen"/>
-</launch>
