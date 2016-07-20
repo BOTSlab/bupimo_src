@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 '''
+Adapted for the Zumo 32U4 robot by Nicholi Shiell and Andrew Vardy.
+Memorial University
+
+---
+
 Created January, 2011
 
 @author: Dr. Rainer Hessmer
@@ -31,31 +36,22 @@ Created January, 2011
   ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 '''
 
-# AV: Not needed
-# import roslib
 import rospy
 import sys
+import tf
 
 from geometry_msgs.msg import Twist
-from bupimo_msgs.msg import ZumoProximities
+from bupimo_msgs.msg import ZumoData
 from std_msgs.msg import String
+from nav_msgs.msg import Odometry
+
 
 from SerialDataGateway import SerialDataGateway
 
-class serial_comms_node(object):
+class zumo_comms_node(object):
 	'''
-	Helper class for communicating with an Arduino board over serial port
+	Helper class for communicating with the Zumo 32U4 over serial
 	'''
-
-        # Half the baseline distance between the Zumo's wheels (in metres)
-        HALF_BASELINE = 0.085
-
-        # Radius of the Zumo's wheels (including treads --- in metres)
-        WHEEL_RADIUS = 0.019
-
-        # Arbitrarily set conversion factor from wheel speeds in rads/sec to
-        # the Zumo library's input speeds in the range of [-400, 400].
-        ZUMO_SPEED_CONVERSION = 7.6
 
 	def ReceivedLine(self,  line):
             #print("LINE: " + line)
@@ -63,57 +59,55 @@ class serial_comms_node(object):
             #print("words: ")
             #print(words)
             if len(line) > 0:
-                # Its a proximities message.
-                prox_msg = ZumoProximities()
+                zumo_msg = ZumoData()
                 try:
-                    prox_msg.front = int(words[0])
-                    prox_msg.left = int(words[1])
-                    prox_msg.right = int(words[2])
+                    zumo_msg.x = float(words[0])
+                    zumo_msg.y = float(words[1])
+                    zumo_msg.theta = float(words[2])
+                    zumo_msg.linearSpeed = float(words[3])
+                    zumo_msg.angularSpeed = float(words[4])
+                    zumo_msg.compassHeading = float(words[5])
+                    zumo_msg.frontProximity = int(words[6])
                 except: # Catch all 
                     exception = sys.exc_info()[0]
-                    print("Exception in serial_comms_node: " + str(exception))
+                    print("Exception in zumo_comms_node: " + str(exception))
 
-                self.proxPublisher.publish(prox_msg)
+                self.zumoPublisher.publish(zumo_msg)
+
+                self.tf_and_odom(zumo_msg)
+
+        def tf_and_odom(zumo_msg):
+            """Broadcast tf transform and publish odometry.  It seems a little
+            redundant to do both, but both are needed if we want to use the ROS
+            navigation stack."""
+    
+            trans = (zumo_msg.x, zumo_msg.y, 0)
+            rot = tf.transformations.quaternion_from_euler(0, 0, zumo_msg.theta)
+
+            self.broadcaster.sendTransform(trans, rot, \
+               rospy.Time.now(), \
+               "base_link", \
+               "odom")
+
+            odom = Odometry()
+            odom.header.frame_id = 'odom'
+            odom.header.stamp = rospy.Time.now()
+            odom.pose.pose.position = trans
+            odom.pose.pose.orientation = rot
+            odom.child_frame_id = 'base_link'
+            odom.twist.twist = stored_twist
 		
-        # AV: Switching to controlling the robot via a Twist message
-	#def TransmitWheelSpeeds(self, wheelSpeeds):
-	#	#message = "w " + str(wheelSpeeds) +"\n"
-	#	message = str(wheelSpeeds.data)
-	#	self.SerialDataGateway.Write(message)
-
-        # AV: The following callback will use the inverse kinematics for a
-        # differential-drive robot (i.e. the Zumo) to determine the desired
-        # wheel speeds which are sent to the Zumo as a string in the form
-        # "LEFT_SPEED RIGHT_SPEED".  Note that both speeds should be in the
-        # range [-400, 400].  So we will apply those caps here as well.
-        def TwistCallback(self, twistMessage):
+        def TwistCallback(self, twist):
             v = twistMessage.linear.x   # Forward speed
             w = twistMessage.angular.z  # Angular speed
 
-            # The following should be in rads / sec
-            leftSpeedRads = (v - self.HALF_BASELINE * w) / self.WHEEL_RADIUS
-            rightSpeedRads = (v + self.HALF_BASELINE * w) / self.WHEEL_RADIUS
-
-            # Convert to commanded speeds
-            leftSpeed = int(self.ZUMO_SPEED_CONVERSION * leftSpeedRads)
-            rightSpeed = int(self.ZUMO_SPEED_CONVERSION * rightSpeedRads)
-
-            #print('leftSpeed: ' + str(leftSpeed))
-            #print('rightSpeed: ' + str(rightSpeed))
-            
-            # Cap at +/-400
-            if leftSpeed > 400: leftSpeed = 400
-            if leftSpeed < -400: leftSpeed = -400
-            if rightSpeed > 400: rightSpeed = 400
-            if rightSpeed < -400: rightSpeed = -400
-
             # Send to Zumo
-            message = str(leftSpeed) + ' ' + str(rightSpeed)
+            message = str(v) + ':' + str(w) + ':0'
 	    self.SerialDataGateway.Write(message)
+
+            self.stored_twist = twist
 		
 
-        # AV: Corrected baudrate, although it shouldn't matter
-	# def __init__(self, port="/dev/serial0", baudrate=56700):
 	def __init__(self, port="/dev/serial0", baudrate=57600):
 		'''
 		Initializes the receiver class. 
@@ -121,22 +115,32 @@ class serial_comms_node(object):
 		baudrate: Baud rate for the serial communication
 		'''
 
-		rospy.init_node('serial_comms_node')
+		rospy.init_node('zumo_comms_node')
 
 		port = rospy.get_param("~port", "/dev/serial0")
 		baudRate = int(rospy.get_param("~baudRate", 57600))
 
-		rospy.loginfo("Starting with serial port: " + port + ", baud rate: " + str(baudRate))
+		rospy.loginfo("Starting with serial port: " + port + \
+                            ", baud rate: " + str(baudRate))
 
-		# subscriptions
-		# rospy.Subscriber("wheelSpeeds", String, self.TransmitWheelSpeeds)
+		# Subscriptions
 		rospy.Subscriber("cmd_vel", Twist, self.TwistCallback)
     
-		self.proxPublisher = rospy.Publisher('zumo_prox', ZumoProximities, queue_size = 1)
+                # Publishers
+		self.zumoPublisher = rospy.Publisher('zumo_data', ZumoData, \
+                                                    queue_size=1)
+                self.odomPublisher = rospy.Publisher('odom', Odometry, \
+                                                     queue_size=1)
+
+                # Creat TF broadcaster
+                self.broadcaster = tf.TransformBroadcaster()
 
 		# CREATE A SERIAL_DATA_GATEWAY OBJECT 
 		# pass it a function pointer to _HandleReceivedLine
-		self.SerialDataGateway = SerialDataGateway(port, baudRate,  self.ReceivedLine)
+		self.SerialDataGateway = SerialDataGateway(port, baudRate, \
+                                                            self.ReceivedLine)
+
+                self.stored_twist = Twist()
 
 	def Start(self):
 		#rospy.logdebug("Starting")
@@ -148,11 +152,11 @@ class serial_comms_node(object):
 		
 
 if __name__ == '__main__':
-	serial_comms_node = serial_comms_node()
+	zumo_comms_node = zumo_comms_node()
 	try:
-		serial_comms_node.Start()
+		zumo_comms_node.Start()
 		rospy.spin()
 
 	except rospy.ROSInterruptException:
-		serial_comms_node.Stop()
+		zumo_comms_node.Stop()
 

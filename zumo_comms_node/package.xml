@@ -1,8 +1,8 @@
 <package>
-  <name>serial_comms_node</name>
+  <name>zumo_comms_node</name>
   <version>0.0.0</version>
   <description>
-    Simple node that reads/writes strings from/to a serial port.
+    Communicates with the Zumo 32U4 robot via serial.
   </description>
   <author>Nicholi Shiell</author>
   <maintainer email="nicholishiell@gmail.com">Nicholi Shiell</maintainer>

@@ -49,7 +49,7 @@ add_message_files(
   PuckArray.msg
   Cluster.msg
   ClusterArray.msg
-  ZumoProximities.msg
+  ZumoData.msg
   Obstacle.msg
   ObstacleArray.msg
 )
