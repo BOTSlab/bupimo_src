@@ -18,9 +18,12 @@ Unfolder::Unfolder() {
     //horizon = 840;
 
     // The following are for the Bubblescope
-    centreX = 1414;
-    centreY = 893;
-    horizon = 680;
+    //centreX = 1414;
+    //centreY = 893;
+    //horizon = 680;
+    centreX = 1236;
+    centreY = 978;
+    horizon = 657;
 
     // Parameters of mirror
     // Accowle Mirror
@@ -33,10 +36,11 @@ Unfolder::Unfolder() {
 
     // Parameters governing the sampling pattern from the input to the output
     // image.
-    nRows = 100;
-    nTrim = 0;
+    nRows = 20;
+//    nTrim = 0;
+    nTrim = 10;
     //maxGamma = 26.0 * M_PI/180.0; // i.e. 26 degrees
-    maxGamma = 11.5 * M_PI/180.0; // i.e. 26 degrees
+    maxGamma = 12.5 * M_PI/180.0; // i.e. 26 degrees
 
     // Derived parameters (shouldn't need to modify these).
     nRows_2 = nRows / 2;
@@ -50,6 +54,14 @@ Unfolder::Unfolder() {
     s = horizon / (f * tan(phiHor));
 }
 
+void drawSquare(Img *Debug, int x, int y, int radius, int value) {
+    for (int i=x-radius; i<=x+radius; i++)
+        for (int j=y-radius; j<=y+radius; j++)
+            if (i >= 0 && i < Debug->getWidth() && 
+                j >= 0 && j < Debug->getHeight() )
+                Debug->set(i, j, value);
+}
+
 Img* Unfolder::unfold( Img& Input, Img*& Output, bool debug ) {
     if (Output == 0)
         Output = new Img(nCols, nRows-nTrim);
@@ -59,6 +71,8 @@ Img* Unfolder::unfold( Img& Input, Img*& Output, bool debug ) {
     Img *Debug = NULL;
     if (debug)
         Debug = new Img(Input);
+        // Mark centre on debug image
+        drawSquare(Debug, round(centreX), round(centreY), 10, 1);
 
     double gamma, phi, p, beta, ix, iy;
     for (int row = 0; row<nRows-nTrim; row++) {
@@ -82,9 +96,9 @@ Img* Unfolder::unfold( Img& Input, Img*& Output, bool debug ) {
 
             if (debug) {
                 if (gamma == 0)
-                    Debug->set(round(ix), round(iy), 0);
+                    drawSquare(Debug, round(ix), round(iy), 3, 1);
                 else
-                    Debug->set(round(ix), round(iy), 1);
+                    drawSquare(Debug, round(ix), round(iy), 3, 0);
             }
         }
     }
