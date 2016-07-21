@@ -143,11 +143,11 @@ class zumo_comms_node(object):
                 self.stored_twist = Twist()
 
 	def Start(self):
-		#rospy.logdebug("Starting")
+		rospy.logdebug("zumo_comms_node: Starting")
 		self.SerialDataGateway.Start()
 
 	def Stop(self):
-		#rospy.logdebug("Stopping")
+		rospy.logdebug("zumo_comms_node: Stopping")
 		self.SerialDataGateway.Stop()
 		
 

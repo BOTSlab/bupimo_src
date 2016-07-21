@@ -2,6 +2,8 @@
 <launch>
     <include file="$(find bupimo_launch)/launch/_params.launch"/>
 
+    <include file="$(find bupimo_launch)/launch/_pixy_related.launch"/>
+
     <include file="$(find bupimo_launch)/launch/_picamera_ops.launch"/>
 
     <include file="$(find bupimo_launch)/launch/_zumo.launch"/>

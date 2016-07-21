@@ -20,7 +20,8 @@ img.a: $(OBJS)
 	ar cr img.a $(OBJS)
 
 copyToBin: $(PROGS)
-	cp $(PROGS) $(BINDIR)
+#	cp $(PROGS) $(BINDIR)
+	cp $(PROGS) ~/av_scripts/.
 
 windowTest: windowTest.cpp $(OBJS) $(UTILSDIR)/SingleConfig.o
 

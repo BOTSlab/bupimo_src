@@ -85,7 +85,8 @@ Img* Unfolder::unfold( Img& Input, Img*& Output, bool debug ) {
         for (int col=0; col<nCols; col++) {
 //            beta = 2.0*M_PI*(1.0 - col / (double)nCols) - M_PI/2.0;
 //          // For the Bubblescope (first attempt)
-            beta = 2.0*M_PI*(col / (double)nCols) - M_PI/2.0;
+//            beta = 2.0*M_PI*(col / (double)nCols) - M_PI/2.0;
+            beta = 2.0*M_PI*(col / (double)nCols);
 
             // (ix,iy) are the coordinates cooresponding to (beta,gamma) in the
             // input image.

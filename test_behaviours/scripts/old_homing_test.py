@@ -7,12 +7,45 @@ Andrew Vardy
 """
 
 import rospy, math
+from bupimo_msgs.msg import ClusterArray
 from picamera_ops.srv import SetGoalLocation
 from picamera_ops.srv import GetBearingForGoal
 from geometry_msgs.msg import Twist
 
 from bupimo_utils.movements import move_forwards_to_bearing
 
+def pausing_callback(cluster_array_msg):
+    global pause_counter
+
+    if (pause_counter % pause_interval) == 0:
+        # Do the actual work
+        working_callback(cluster_array_msg)
+
+    elif (pause_counter % pause_interval) < pause_movetime:
+        # Continue with previously published speed
+        pass
+
+    else:
+        # Stop
+        cmd_vel_publisher.publish(Twist())
+
+    pause_counter += 1
+
+def working_callback(cluster_array_msg):
+    """Doing things in this callback just because that will be the main method
+    for cache_cons."""
+
+    # Get the bearing to the goal location
+    try:
+        response = get_bearing(0)
+    except rospy.ServiceException as excep:
+        print("Service problem: " + str(excep))
+
+    # Move towards the bearing found
+    twist = move_forwards_to_bearing(response.bearing)
+
+    cmd_vel_publisher.publish(twist)
+        
 if __name__ == '__main__':
     global pause_interval, move_interval, pause_counter
 
@@ -46,28 +79,5 @@ if __name__ == '__main__':
     else:
  
         rospy.Subscriber('clusters', ClusterArray, working_callback)
-
-    rate = rospy.Rate(10.0)
-    while not rospy.is_shutdown():
-
-        while 
-
-        # Get the bearing to the goal location
-        try:
-            response = get_bearing(0)
-        except rospy.ServiceException as excep:
-            print("Service problem: " + str(excep))
-
-        while
     
-        rospy.spin()
-
-def working_callback(cluster_array_msg):
-    """Doing things in this callback just because that will be the main method
-    for cache_cons."""
-
-    # Move towards the bearing found
-    twist = move_forwards_to_bearing(response.bearing)
-
-    cmd_vel_publisher.publish(twist)
-        
+    rospy.spin()

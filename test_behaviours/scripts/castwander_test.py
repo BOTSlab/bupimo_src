@@ -6,8 +6,8 @@ Andrew Vardy
 """
 
 import rospy, math, random
-from obstacle_detector.msg import CastObstacle
-from obstacle_detector.msg import CastObstacleArray
+from picamera_ops.msg import CastObstacle
+from picamera_ops.msg import CastObstacleArray
 from geometry_msgs.msg import Twist
 
 from bupimo_utils.movements import wander_while_avoiding_castobs
