@@ -1,10 +1,4 @@
 <?xml version="1.0"?>
 <launch>
-    <!-- The following loads parameters which may need to be customized for
-         each robot.  Hence, they are placed in an external file:
-         /home/pi/robot_params.yaml -->
-    <rosparam command="load" file="/home/pi/robot_params.yaml" />
-
     <node pkg="picamera_ops" type="main.py" name="picamera_ops" output="screen"/>
-
 </launch>

@@ -1,8 +1,10 @@
 <?xml version="1.0"?>
 <launch>
-    <include file="$(find bupimo_launch)/launch/all_non_moving.launch"/>
+    <include file="$(find bupimo_launch)/launch/_params.launch"/>
 
-    <include file="$(find bupimo_launch)/launch/serial.launch"/>
+    <include file="$(find bupimo_launch)/launch/_picamera_ops.launch"/>
+
+    <include file="$(find bupimo_launch)/launch/_zumo.launch"/>
 
     <node pkg="test_behaviours" type="homing_test.py" name="homing_test" output="screen"/>
 </launch>
