@@ -2,6 +2,6 @@
 <launch>
 
     <node pkg="zumo_comms_node" type="zumo_comms_node.py" name="zumo_comms_node" output="screen">
-        <param name = "port" value="/dev/ttyAMA0"/>
+        <param name = "port" value="/dev/serial0"/>
     </node>
 </launch>
