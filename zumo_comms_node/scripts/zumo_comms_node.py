@@ -54,7 +54,7 @@ class zumo_comms_node(object):
 	'''
 
 	def ReceivedLine(self,  line):
-            #print("LINE: " + line)
+            print("LINE: " + line)
             words = line.split("\t")
             #print("words: ")
             #print(words)
