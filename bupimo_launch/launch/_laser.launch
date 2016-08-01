@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<launch>
+    <node pkg="urg_node" type="urg_node" name="urg_node" output="screen">
+        <param name = "cluster" value="10"/>
+        <param name = "angle_min" value="-1.92"/>
+    </node>
+</launch>

@@ -2,7 +2,7 @@
 <launch>
     <include file="$(find bupimo_launch)/launch/_zumo.launch"/>
 
-    <node pkg="urg_node" type="urg_node" name="urg_node" output="screen"/>
+    <include file="$(find bupimo_launch)/launch/_laser.launch"/>
 
     <node pkg="rvo2_laser" type="rvo2_laser.py" name="rvo2_laser" output="screen"/>
 </launch>
