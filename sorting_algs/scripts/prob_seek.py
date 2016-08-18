@@ -12,7 +12,8 @@ from bupimo_msgs.msg import Cluster
 from bupimo_msgs.msg import ClusterArray
 from bupimo_msgs.msg import ZumoProximities
 from bupimo_msgs.msg import ObstacleArray
-from obstacle_detector.msg import CastObstacleArray
+#from obstacle_detector.msg import CastObstacleArray
+from rvo2_laser.msg import Activate
 from geometry_msgs.msg import Twist
 
 from bupimo_utils.pucks_and_clusters import get_puck_distance
@@ -30,7 +31,7 @@ class ProbSeek:
         rospy.init_node('prob_seek')
 
         # Initialize variables
-        self.state = "PU_SCAN"
+        self.state = "PU_SCAN" 
         self.puck_in_gripper = False
         self.carried_type = None
         self.target_puck = None
@@ -39,7 +40,7 @@ class ProbSeek:
         self.random_turn_dir = 1
         self.random_turn_time = 0
         #self.obstacle_array_msg = None
-        self.castobstacle_array_msg = None
+        #self.castobstacle_array_msg = None
         self.nongripper_time = 0
         self.prox_below_threshold = False
 
@@ -72,7 +73,12 @@ class ProbSeek:
 
         rospy.Subscriber('zumo_prox', ZumoProximities, self.prox_callback)
         #rospy.Subscriber('obstacles', ObstacleArray, self.obstacles_callback)
-        rospy.Subscriber('castobstacles', CastObstacleArray, self.castobstacles_callback)
+        #rospy.Subscriber('castobstacles', CastObstacleArray, self.castobstacles_callback)
+
+        rospy.wait_for_service('activate_avoider')
+        self.activate_avoider = rospy.ServiceProxy('activate_avoider', Activate)
+        # Since we start in PU_SCAN, we want to wander right away.
+        self.activate_avoider(True)
 
         rospy.on_shutdown(self.shutdown_handler)
 
@@ -84,8 +90,8 @@ class ProbSeek:
 #    def obstacles_callback(self, obstacle_array_msg):
 #        self.obstacle_array_msg = obstacle_array_msg
 
-    def castobstacles_callback(self, castobstacle_array_msg):
-        self.castobstacle_array_msg = castobstacle_array_msg
+#    def castobstacles_callback(self, castobstacle_array_msg):
+#        self.castobstacle_array_msg = castobstacle_array_msg
 
     def transition(self, new_state, message):
         self.state = new_state
@@ -175,7 +181,6 @@ class ProbSeek:
 
         self.current_step = cluster_array_msg.header.seq
         time_in_state = self.current_step - self.state_start_step
-
 
         if self.prox_below_threshold: # Indicating "possibly" a puck
             self.nongripper_time = 0
@@ -310,26 +315,32 @@ class ProbSeek:
         if self.state == "PU_SCAN" or self.state == "DE_SCAN":
             #twist = wander_while_avoiding_obs_pucks(self.obstacle_array_msg, \
             #                                        cluster_array_msg)
-            twist = wander_while_avoiding_castobs(self.castobstacle_array_msg)
+            #twist = wander_while_avoiding_castobs(self.castobstacle_array_msg)
+            activate_avoider(True)
 
         elif self.state == "PU_TARGET" or \
              self.state == "PU_TARGET_CLOSE" or \
              self.state == "DE_TARGET":
+            activate_avoider(False)
             twist = move_to_puck(self.target_puck)
 
         elif self.state == "DE_PUSH" or self.state == "PU_TARGET_FINAL":
+            activate_avoider(False)
             twist = forwards()
 
         elif self.state == "DE_BACKUP":
+            activate_avoider(False)
             twist = backwards()
 
         elif self.state == "DE_TURN":
+            activate_avoider(False)
             twist = turn(self.random_turn_dir)
 
         else:
             sys.exit("Unknown state")
 
-        self.cmd_vel_publisher.publish(twist)
+        if twist != None:
+            self.cmd_vel_publisher.publish(twist)
 
     def shutdown_handler(self):
         # Stop the robot

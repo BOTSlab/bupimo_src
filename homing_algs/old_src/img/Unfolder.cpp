@@ -86,7 +86,9 @@ Img* Unfolder::unfold( Img& Input, Img*& Output, bool debug ) {
 //            beta = 2.0*M_PI*(1.0 - col / (double)nCols) - M_PI/2.0;
 //          // For the Bubblescope (first attempt)
 //            beta = 2.0*M_PI*(col / (double)nCols) - M_PI/2.0;
-            beta = 2.0*M_PI*(col / (double)nCols);
+            // For Ralf's format with FOE at left margin when moving along
+            // x-coordinate of capture grid.
+            beta = 2.0*M_PI*(col / (double)nCols) - M_PI/2.0;
 
             // (ix,iy) are the coordinates cooresponding to (beta,gamma) in the
             // input image.

@@ -92,14 +92,26 @@ class zumo_comms_node(object):
             odom = Odometry()
             odom.header.frame_id = 'odom'
             odom.header.stamp = rospy.Time.now()
-            odom.pose.pose.position = trans
-            odom.pose.pose.orientation = rot
+            odom.pose.pose.position.x = trans[0]
+            odom.pose.pose.position.y = trans[1]
+            odom.pose.pose.position.z = trans[2]
+            odom.pose.pose.orientation.x = rot[0]
+            odom.pose.pose.orientation.y = rot[1]
+            odom.pose.pose.orientation.z = rot[2]
+            odom.pose.pose.orientation.w = rot[3]
             odom.child_frame_id = 'base_link'
             odom.twist.twist = self.stored_twist
+
+            self.odomPublisher.publish(odom)
 		
         def TwistCallback(self, twist):
             v = twist.linear.x   # Forward speed
             w = twist.angular.z  # Angular speed
+
+            # Reduce the number of digits sent which can cause problems on
+            # the Zumo.
+            v = int(v * 1000) / 1000.0
+            w = int(w * 1000) / 1000.0
 
             # Send to Zumo
             message = str(v) + ':' + str(w) + ':0'
