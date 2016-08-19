@@ -1,12 +1,16 @@
 <?xml version="1.0"?>
 <launch>
-    <include file="$(find bupimo_launch)/launch/_params.launch"/>
+    <include file="$(find bupimo_launch)/launch/_params_no_cam.launch"/>
 
     <include file="$(find bupimo_launch)/launch/_pixy_related.launch"/>
 
-    <include file="$(find bupimo_launch)/launch/_picamera_ops.launch"/>
-
     <include file="$(find bupimo_launch)/launch/_zumo.launch"/>
+
+    <include file="$(find bupimo_launch)/launch/_laser.launch"/>
+
+    <node pkg="servo_control_node" type="servo_control.py" name="servo_control" output="screen"/>
+
+    <node pkg="rvo2_laser" type="rvoavoider.py" name="rvoavoider" output="screen"/>
 
     <node pkg="sorting_algs" type="prob_seek.py" name="prob_seek" output="screen"/>
 </launch>

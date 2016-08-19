@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Global parameters -->
+    <param name = "number_puck_types" value="2"/>
+    <param name = "obstacle_signature_start" value="-1"/>
+    <param name = "obstacle_signature_stop" value="-1"/>
+
+    <!-- 2 times puck diameter (6.3cm) -->
+    <param name = "cluster_distance_threshold" value="0.126"/>
+</launch>

@@ -8,10 +8,13 @@ Andrew Vardy
 
 import rospy, rvo2
 from math import *
-from rvo2_laser.srv import Activate
+from rvo2_laser.srv import *
 from sensor_msgs.msg import LaserScan 
 from nav_msgs.msg import Odometry 
 from geometry_msgs.msg import Twist
+
+# For avoiding pucks
+from bupimo_msgs.msg import ClusterArray
 
 class RVOAvoider:
 
@@ -51,11 +54,16 @@ class RVOAvoider:
 
         self.active = True
 
+        self.cluster_array = None
+
         # Subscribe to odom
         rospy.Subscriber('odom', Odometry, self.odom_callback)
 
         # Subscribe to scan
         rospy.Subscriber('scan', LaserScan, self.scan_callback)
+
+        # Subscribe to clusters of pucks --- so that we can avoid them
+        rospy.Subscriber('clusters', ClusterArray, self.clusters_callback)
 
     def handle_activate(self, request):
         self.active = request.set_active
@@ -63,6 +71,9 @@ class RVOAvoider:
 
     def odom_callback(self, odom):
         self.odom_twist = odom.twist.twist
+
+    def clusters_callback(self, cluster_array):
+        self.cluster_array = cluster_array
 
     def scan_callback(self, scan):
         if not self.active:
@@ -75,7 +86,7 @@ class RVOAvoider:
                                   1.5,   # neighborDist
                                   5,     # maxNeighbors
                                   1.5,   # timeHorizon (other agents)
-                                  2.0,   #2     # timeHorizon (obstacles)
+                                  1.0,   #2     # timeHorizon (obstacles)
                                   self.ROBOT_RADIUS,   # agent radius
                                   self.MAX_LINEAR_SPEED)     # agent max speed
         agent = sim.addAgent((0, 0))
@@ -89,11 +100,33 @@ class RVOAvoider:
                 theta = scan.angle_min + i * scan.angle_increment
                 rho = self.ROBOT_RADIUS + r
                 points.append((rho*cos(theta), rho*sin(theta)))
+        #print "JUST LASER: "
+        #for p in points:
+        #    print str(atan2(p[1], p[0])) + ", " + str(sqrt(p[0]**2 + p[1]**2))
+
+        # Add points corresponding to pucks.
+        if self.cluster_array != None:
+            puck_points = []
+            for cluster in self.cluster_array.clusters:
+                for puck in cluster.array.pucks:
+                    puck_points.append((puck.position.x, puck.position.y))
+            
+            # Incorporate into 'points'
+            points.extend(puck_points)
+
+        #print "LASER + PUCKS: "
+        #for p in points:
+        #    print str(atan2(p[1], p[0])) + ", " + str(sqrt(p[0]**2 + p[1]**2))
 
         # The scan points will be treated together as a single "negative"
         # obstacle, with vertices specified in CW order.  This requires the
-        # list of points in reverse.
-        points.reverse()
+        # following sort.
+        points.sort(key = lambda p: -atan2(p[1], p[0]))
+
+        #print "LASER + PUCKS SORTED: "
+        #for p in points:
+        #    print str(atan2(p[1], p[0])) + ", " + str(sqrt(p[0]**2 + p[1]**2))
+
         sim.addObstacle(points)
         sim.processObstacles()
 
