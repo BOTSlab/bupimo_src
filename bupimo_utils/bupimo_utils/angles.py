@@ -1,7 +1,7 @@
 from math import pi
 from math import fmod
 
-def constrain_angle(angle):
+def constrain_angle_neg_pos_pi(angle):
     """ 
     Constrains the given angle to the range (-pi, pi].
     """
@@ -16,18 +16,33 @@ def constrain_angle(angle):
     else:
         return 0
 
-def verify(angle, ideal):
-    result = constrain_angle(angle)
+def constrain_angle_pos_twopi(angle):
+    """ 
+    Constrains the given angle to the range (0, 2*pi].
+    """
+
+    neg_pos_angle = constrain_angle_neg_pos_pi(angle)
+
+    if neg_pos_angle < 0:
+        return neg_pos_angle + 2*pi
+    else:
+        return neg_pos_angle
+
+def verify_neg_pos_pi(angle, ideal):
+    result = constrain_angle_neg_pos_pi(angle)
     difference = abs(result - ideal)
     if difference < 1e-10:
         pass
-        print "Passed: constrain_angle({}) = {}".format(angle, ideal)
+        print "Passed: constrain_angle_neg_pos_pi({}) = {}".format(angle, ideal)
     else:
         pass
-        print "Failed: constrain_angle({}) != {}.  Got {} instead".format(\
+        print "Failed: constrain_angle_neg_pos_pi({}) != {}.  Got {} instead".format(\
               angle, ideal, result)
         pass
     pass
+
+def verify(angle, ideal):
+    verify_neg_pos_pi(angle, ideal)
 
 # Testing
 if __name__ == '__main__':

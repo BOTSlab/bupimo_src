@@ -44,9 +44,9 @@ busy_handling_image = False
 #    warp_homing.set_goal_location(image, req.goalId)
 #    return SetGoalLocationResponse()
 #
-#def init_pubs_servs():
-#    #Define all services, publishers etc
-#    rospy.init_node('picamera_ops', anonymous=False)
+def init_pubs_servs():
+    #Define all services, publishers etc
+    rospy.init_node('picamera_ops', anonymous=False)
 #
 #    s = rospy.Service('get_bearing_for_goal', GetBearingForGoal, \
 #                        handle_get_bearing_for_goal)
@@ -87,7 +87,7 @@ if __name__ == '__main__':
                 image = cv2.cvtColor(frame.array, cv2.COLOR_BGR2GRAY)
 
                 if firstFrame == True:
-#                    init_pubs_servs()
+                    init_pubs_servs()
 
                     print "image.shape: " + str(image.shape)
                     firstFrame = False

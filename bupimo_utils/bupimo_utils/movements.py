@@ -6,7 +6,7 @@ from geometry_msgs.msg import Twist
 from bupimo_utils.math_utils import sign
 from bupimo_utils.pucks_and_clusters import get_closest_puck
 from bupimo_utils.obstacles import get_closest_obstacle
-from bupimo_utils.angles import constrain_angle
+from bupimo_utils.angles import constrain_angle_neg_pos_pi
 
 FORWARD_SPEED = 0.25
 ROT_SPEED = 5.0
@@ -121,7 +121,7 @@ def move_towards_bearing(bearing):
 #    """Generate a twist message that moves us towards the given bearing,
 #including potentially going backwards."""
 #    twist = Twist()
-#    bearing = constrain_angle(bearing)
+#    bearing = constrain_angle_neg_pos_pi(bearing)
 #    if bearing > 0:
 #        twist.linear.x = (PI_OVER_2 - bearing) / PI_OVER_2 * FORWARD_SPEED
 #    else:
@@ -180,7 +180,7 @@ def wander_while_avoiding_castobs(castobstacle_array_msg):
     # Behaviour for state
     if wander_state == "AVOID":
         #print("AVOID")
-        closest_theta = constrain_angle(closest_obs.theta)
+        closest_theta = constrain_angle_neg_pos_pi(closest_obs.theta)
         if closest_rho > 110 or math.fabs(closest_theta) > PI_OVER_2:
             # The way is clear.  
             return forwards()

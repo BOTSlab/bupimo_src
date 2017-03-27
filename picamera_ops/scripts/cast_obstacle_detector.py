@@ -11,7 +11,7 @@ import rospy, math
 import settings
 
 from picamera_ops.msg import *
-from bupimo_utils.angles import constrain_angle
+from bupimo_utils.angles import constrain_angle_neg_pos_pi, constrain_angle_pos_twopi
 
 # TODO: these should come from the parameter server
 #img_width = 1296
@@ -20,7 +20,7 @@ from bupimo_utils.angles import constrain_angle
 #img_height = 972/2
 inner_radius = None
 
-first_run_calc_offset = True
+first_run_calc_offset = False
 
 TWO_PI = 2 * math.pi
 
@@ -145,7 +145,11 @@ def init(settings):
     global lines
 
     lines = []
-    for theta in np.linspace(0.0, 6.28, 50, False):
+#    for theta in np.linspace(0.0, 6.28, 50, False):
+    angles = np.linspace(math.pi, 2*math.pi, 50, False)
+    for theta in angles:
+        theta = constrain_angle_pos_twopi(theta)
+
         p1xr = int( np.cos(theta) * (p1x - x) - np.sin(theta) * (p1y - y) + x )
         p1yr = int( np.sin(theta) * (p1x - x) + np.cos(theta) * (p1y - y) + y )
         p2xr = int( np.cos(theta) * (p2x - x) - np.sin(theta) * (p2y - y) + x )
@@ -186,7 +190,7 @@ def find_obstacles_on_all_lines(image_gray, image_debug, debug = False):
 
         if collision_pos is not None:
             obstacle = CastObstacle()
-            obstacle.theta = constrain_angle(TWO_PI - line[0])
+            obstacle.theta = constrain_angle_pos_twopi(line[0])
             obstacle.rho = np.sqrt( (collision_pos[0]-x)**2 + (collision_pos[1]-y)**2 )
             obstacles.append(obstacle)
 
@@ -198,7 +202,7 @@ def find_obstacles_on_all_lines(image_gray, image_debug, debug = False):
                 if obstacle.rho == min_rho:
                     cv2.circle(image_debug, collision_pos, 5, (0,0,255), -1)
                 else:
-                    cv2.circle(image_debug, collision_pos, 5, (0,255,0), -1)
+                    cv2.circle(image_debug, collision_pos, 5, (0,255*obstacle.theta/(math.pi*2),0), -1)
 
         if first_run_calc_offset:
             line[5] = offset_to_line
@@ -207,8 +211,8 @@ def find_obstacles_on_all_lines(image_gray, image_debug, debug = False):
     if debug:
         cv2.imshow("DEBUG", image_debug)
         key = cv2.waitKey(1) & 0xFF
-#        if key == ord("q"):
-#            break
+        if key == ord("q"):
+            break
 
     first_run_calc_offset = False
 
