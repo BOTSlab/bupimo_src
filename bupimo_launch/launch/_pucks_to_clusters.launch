@@ -1,7 +1,0 @@
-<launch>
-    <param name = "number_puck_types" value="2"/>
-
-    <param name = "cluster_distance_threshold" value="0.02"/>
-
-    <node pkg="pucks_to_clusters" type="pucks_to_clusters.py" name="pucks_to_clusters" output="screen"/>
-</launch>

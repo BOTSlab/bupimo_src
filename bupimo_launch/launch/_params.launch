@@ -1,16 +1,7 @@
 <?xml version="1.0"?>
 <launch>
-    <!-- Global parameters -->
-    <param name = "number_puck_types" value="2"/>
-    <param name = "obstacle_signature_start" value="3"/>
-    <param name = "obstacle_signature_stop" value="4"/>
-
-    <!-- 2 times puck diameter (6.3cm) -->
-    <param name = "cluster_distance_threshold" value="0.126"/>
-
     <!-- The following loads parameters which may need to be customized for
          each robot.  Hence, they are placed in an external file:
          /home/pi/robot_params.yaml -->
     <rosparam command="load" file="/home/pi/robot_params.yaml" />
-
 </launch>

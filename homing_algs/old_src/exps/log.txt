@@ -1,4 +1,0 @@
-above_horizon_0_0 AAE: 0.217149
-above_horizon_3_3 AAE: 0.180299
-full_image_0_0 AAE: 0.199634
-full_image_3_3 AAE: 0.16041
