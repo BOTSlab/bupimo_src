@@ -1,4 +1,0 @@
-int32 goalId
----
-float32 bearing
-bool is_valid
