@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<launch>
+    <include file="$(find bupimo_launch)/launch/_params.launch"/>
+
+    <include file="$(find bupimo_launch)/launch/_picamera_ops.launch"/>
+
+</launch>

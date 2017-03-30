@@ -1,16 +1,23 @@
 #!/usr/bin/env python
-# Authors: Daniel Cook <dac456@mun.ca>, Andrew Vardy <av@mun.ca>
+"""
+This is basically Daniel's cast obstacle detector from 2016, turned into a
+class.  It operates on grayscale images and detects edges (transitions) from
+light to dark along rays cast out from the centre of the panoramic image.
+
+Authors: Daniel Cook <dac456@mun.ca>, Andrew Vardy <av@mun.ca>
+"""
 
 import rospy, time, math, cv2, cv
 import numpy as np
 
 from math import pi
+from op import Op
 from picamera_ops.msg import *
 from bupimo_utils.angles import constrain_angle_neg_pos_pi, constrain_angle_pos_twopi
 
-class CastColourDetectorOp(Op):
+class CastEdgeDetectorOp(Op):
 
-    def __init__(self, settings):
+    def __init__(self):
 
         # Get parameters
         self.debug = rospy.get_param("debug")
@@ -20,25 +27,26 @@ class CastColourDetectorOp(Op):
         self.centre_y = rospy.get_param("image_mirror_centre_y")
         self.inner_radius = rospy.get_param("image_mirror_inner_radius")
         self.outer_radius = rospy.get_param("image_mirror_outer_radius")
-        self.centre = (self.image_mirror_centre_x, self.image_mirror_centre_y)
+        self.centre = (self.centre_x, self.centre_y)
 
         self.first_run_calc_offset = False
 
-        self.generate_lines(self)
+        self.generate_lines()
 
-        self.publisher = rospy.Publisher('castobstacles', CastColourArray, \
-                                          queue_size=1)
+        self.publisher = rospy.Publisher('hits', HitArray, queue_size=1)
 
     def apply(self, image, image_debug):
-        msg = CastColourArray()
-        msg.obstacles = self.find_obstacles_on_all_lines(image, image_debug, self.debug)
+        # Convert to grayscale
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        msg = HitArray()
+        msg.hits = self.find_hits_on_all_lines(image, image_debug, self.debug)
         self.publisher.publish(msg)
 
     def generate_lines(self):
         """ Generates the lines used to detect collisions. """
         
-        x = self.center[0]
-        y = self.center[1]
+        x = self.centre_x
+        y = self.centre_y
 
         # Lines start offset slightly from the inner circle
         # Assume endpoint is another offset from inner circle
@@ -49,10 +57,7 @@ class CastColourDetectorOp(Op):
 
         # Generate lines around our area of interest
         self.lines = []
-    #    for theta in np.linspace(0.0, 6.28, 50, False):
-    #    angles = np.linspace(math.pi, 2*math.pi, 50, False)
-        angles = [3*pi/2]
-
+        angles = np.linspace(math.pi, 2*math.pi, 50, False)
         for theta in angles:
             theta = constrain_angle_pos_twopi(theta)
 
@@ -62,79 +67,77 @@ class CastColourDetectorOp(Op):
             p2yr = int( np.sin(theta) * (p2x - x) + np.cos(theta) * (p2y - y) + y )
 
     #        lines.append( (theta, p1xr, p1yr, p2xr, p2yr, 0) )
-            lines.append( [theta, p1xr, p1yr, p2xr, p2yr, 0] )
+            self.lines.append( [theta, p1xr, p1yr, p2xr, p2yr, 0] )
                                                           # THE OFFSET FROM FIRST_RUN
 
-    def find_obstacles_on_all_lines(self, image_gray, image_debug, debug = False):
-        global self.first_run_calc_offset
-
+    def find_hits_on_all_lines(self, image_gray, image_debug, debug = False):
         # Iterate over each line and detect edges
         # detect_collision_in_ray will return the first obstacle encountered on a line
         # The angle and distance from image centre are stored to describe the obstacle position (polar coords)
         # Image centre is also reported
 
-        x = settings.roiCenter[0]
-        y = settings.roiCenter[1]
+        x = self.centre_x
+        y = self.centre_y
 
         if debug:
             # Draw inner and outer radii
             cv2.circle(image_debug, (x,y), int(self.inner_radius), (0,255,0), 2)
             cv2.circle(image_debug, (x,y), int(self.outer_radius), (0,255,0), 2)
             min_rho = float('inf')
-            for line in lines:
-                collision_pos = detect_collision_in_ray(image_gray, line[0], (line[1],line[2]), (line[3],line[4]), line[5], self.first_run_calc_offset)
+            for line in self.lines:
+                collision_pos = self.detect_collision_in_ray(image_gray, line[0], (line[1],line[2]), (line[3],line[4]), line[5], self.first_run_calc_offset)
 
                 if collision_pos is not None:
                     rho = np.sqrt((collision_pos[0]-x)**2 + (collision_pos[1]-y)**2)
                     if rho < min_rho:
                         min_rho = rho
 
-        obstacles = []
-        for line in lines:
-            collision_pos = detect_collision_in_ray(image_gray, line[0], (line[1],line[2]), (line[3],line[4]), line[5], self.first_run_calc_offset)
+        hits = []
+        for line in self.lines:
+            collision_pos = self.detect_collision_in_ray(image_gray, line[0], (line[1],line[2]), (line[3],line[4]), line[5], self.first_run_calc_offset)
 
             offset_to_line = 0  # Used only for first_run_calc_offset
 
             if collision_pos is not None:
-                obstacle = CastObstacle()
+                hit = Hit()
                 # Convert the angle to be counter-clockwise in the robot's reference frame where
                 # the forwards direction of the robot is facing upwards in the image.
-                obstacle.theta = constrain_angle_neg_pos_pi(3.0*pi/2.0 - line[0])
-                obstacle.rho = np.sqrt( (collision_pos[0]-x)**2 + (collision_pos[1]-y)**2 )
-                obstacles.append(obstacle)
+                hit.theta = constrain_angle_neg_pos_pi(3.0*pi/2.0 - line[0])
+                hit.rho = np.sqrt( (collision_pos[0]-x)**2 + (collision_pos[1]-y)**2 )
+                hits.append(hit)
 
                 # Valid only for first_run_calc_offset
-                if obstacle.rho < self.inner_radius + 15: # Excluding distant non-self
-                    offset_to_line = obstacle.rho - self.inner_radius + 1
+                if hit.rho < self.inner_radius + 15: # Excluding distant non-self
+                    offset_to_line = hit.rho - self.inner_radius + 1
 
                 if debug:
-                    if obstacle.rho == min_rho:
+                    if hit.rho == min_rho:
                         cv2.circle(image_debug, collision_pos, 5, (0,0,255), -1)
                     else:
-                        if obstacle.theta < 0:
+                        if hit.theta < 0:
                             # Negative angles in blue
-                            byte_value = int(-255 * obstacle.theta / pi)
+                            byte_value = int(-255 * hit.theta / pi)
                             cv2.circle(image_debug, collision_pos, 5, (byte_value,0,0), -1)
                         else:
                             # Positive angles in green
-                            byte_value = int(255 * obstacle.theta / pi)
+                            byte_value = int(255 * hit.theta / pi)
                             cv2.circle(image_debug, collision_pos, 5, (0,byte_value,0), -1)
 
             if self.first_run_calc_offset:
                 line[5] = offset_to_line
 
-        # Sort the obstacles by angle
-        obstacles = sorted(obstacles, key=lambda obs: obs.theta)
+        # Sort the hits by angle
+        hits = sorted(hits, key=lambda hit: hit.theta)
 
         if debug:
-            cv2.imshow("cast_obstacle_detector", image_debug)
+            cv2.imshow("cast_hit_detector", image_debug)
             key = cv2.waitKey(1) & 0xFF
             #if key == ord("q"):
             #    break
 
         self.first_run_calc_offset = False
 
-        return obstacles
+        return hits
 
     # Given a grayscale image, two line end points and a line angle
     # build a line using Bresenham algorithm
@@ -144,8 +147,8 @@ class CastColourDetectorOp(Op):
         # Input line points are warped to octant zero in order to generate the line
         # Pixel positions are warped back to the original octant as they are appended
         # using switch_from_octant_zero
-        p1c = switch_to_octant_zero(theta, p1)
-        p2c = switch_to_octant_zero(theta, p2)
+        p1c = self.switch_to_octant_zero(theta, p1)
+        p2c = self.switch_to_octant_zero(theta, p2)
         dx = (p2c[0] - p1c[0])
         dy = (p2c[1] - p1c[1])
         D = dy - dx
@@ -155,11 +158,11 @@ class CastColourDetectorOp(Op):
         line_pos = []
         line_col = []
         y = p1c[1]
-        if y < settings.yRes:
+        if y < self.image_height:
             for x in range(p1c[0], p2c[0]-1):
-                if x < settings.xRes:
-                    line_pos.append(switch_from_octant_zero(theta, (x,y)))
-                    if line_pos[-1][1] < settings.yRes and line_pos[-1][0] < settings.xRes:
+                if x < self.image_width:
+                    line_pos.append(self.switch_from_octant_zero(theta, (x,y)))
+                    if line_pos[-1][1] < self.image_height and line_pos[-1][0] < self.image_width:
                         line_col.append(image[line_pos[-1][1]][line_pos[-1][0]])
                     else:
                         line_col.append(0.0)
@@ -168,18 +171,12 @@ class CastColourDetectorOp(Op):
                         y += 1
                         D -= dx
                     D += dy
-        print "LINE"
-        print line_col
 
         # Convolve with filter to find image gradient over the line
-    #    filter = [-1,-1,-1,-1,0,1,1,1,1]
-    #    if invert_mask:
-    #        filter = [1,1,1,1,0,-1,-1,-1,-1]
-        filter = [1]
+        filter = [-1,-1,-1,-1,0,1,1,1,1]
+        if invert_mask:
+            filter = [1,1,1,1,0,-1,-1,-1,-1]
         line_grad =  np.convolve(line_col, filter, 'same')
-
-        print "CONVOLVED"
-        print line_grad
 
         for idx, val in enumerate(line_grad):
             # This portion of the image is obscured by the robot

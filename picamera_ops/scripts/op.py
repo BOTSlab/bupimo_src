@@ -1,7 +1,7 @@
 class Op:
     """Interface / abstract class for operations using the PiCamera"""
 
-    def __init__(self, settings):
+    def __init__(self):
         # Should only be called by derived classes
         raise NotImplementedError
 

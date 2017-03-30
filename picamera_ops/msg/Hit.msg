@@ -4,5 +4,5 @@ float32 rho
 # Angle of ray with respect to the robot's reference frame (forwards = x-axis).
 float32 theta
 
-# The kind of object.
-int kind
+# The kind of object hit.
+int32 kind
