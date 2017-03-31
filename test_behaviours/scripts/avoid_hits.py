@@ -1,23 +1,23 @@
 #!/usr/bin/env python
 """
-First test of wandering while avoiding "cast obstacles".
+First test of wandering while avoiding hits.
 
 Andrew Vardy
 """
 
 import rospy, math, random
-from picamera_ops.msg import CastObstacle
-from picamera_ops.msg import CastObstacleArray
+from picamera_ops.msg import Hit
+from picamera_ops.msg import HitArray
 from geometry_msgs.msg import Twist
 
-from bupimo_utils.movements import wander_while_avoiding_castobs
+from bupimo_utils.movements import wander_while_avoiding_hits
 
-def pausing_callback(castobstacle_array_msg):
+def pausing_callback(hit_array_msg):
     global pause_counter
 
     if (pause_counter % pause_interval) == 0:
         # Do the actual work
-        working_callback(castobstacle_array_msg)
+        working_callback(hit_array_msg)
 
     elif (pause_counter % pause_interval) < pause_movetime:
         # Continue with previously published speed
@@ -29,8 +29,8 @@ def pausing_callback(castobstacle_array_msg):
 
     pause_counter += 1
 
-def working_callback(castobstacle_array_msg):
-    twist = wander_while_avoiding_castobs(castobstacle_array_msg)
+def working_callback(hit_array_msg):
+    twist = wander_while_avoiding_hits(hit_array_msg)
     cmd_vel_publisher.publish(twist)
         
 if __name__ == '__main__':
@@ -41,14 +41,14 @@ if __name__ == '__main__':
     pause_movetime = 5 
     pause_counter = 0
 
-    rospy.init_node('castwander_test')
+    rospy.init_node('avoid_hits')
 
     # Publish to 'cmd_vel'
     cmd_vel_publisher = rospy.Publisher('cmd_vel', Twist, queue_size=1)
 
     if do_pause:
-        rospy.Subscriber('castobstacles', CastObstacleArray, pausing_callback)
+        rospy.Subscriber('hits', HitArray, pausing_callback)
     else:
-        rospy.Subscriber('castobstacles', CastObstacleArray, working_callback)
+        rospy.Subscriber('hits', HitArray, working_callback)
     
     rospy.spin()

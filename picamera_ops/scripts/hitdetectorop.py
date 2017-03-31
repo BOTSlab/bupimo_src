@@ -17,7 +17,7 @@ from op import Op
 from picamera_ops.msg import *
 from bupimo_utils.angles import constrain_angle_neg_pos_pi, constrain_angle_pos_twopi
 
-class CastHitDetectorOp(Op):
+class HitDetectorOp(Op):
 
     def __init__(self):
 
@@ -34,8 +34,9 @@ class CastHitDetectorOp(Op):
         self.first_run_calc_offset = False
 
         # Colors defined in HSV
-        self.lower_pink = np.array([160, 0, 0])
-        self.upper_pink = np.array([180, 255, 255])
+        self.wrapped_hsv = True 
+        self.lower_puck_hsv = np.array([4, 120, 100])
+        self.upper_puck_hsv = np.array([176, 160, 240])
     
         self.generate_lines()
 
@@ -120,7 +121,7 @@ class CastHitDetectorOp(Op):
         hits = sorted(hits, key=lambda hit: hit.theta)
 
         if debug:
-            cv2.imshow("cast_hit_detector", image_debug)
+            cv2.imshow("hit_detector", image_debug)
             key = cv2.waitKey(1) & 0xFF
             #if key == ord("q"):
             #    break
@@ -162,16 +163,20 @@ class CastHitDetectorOp(Op):
 
         #print line_col
 
+        # The code below assumes we're using pink, the boundaries for which
+        # wrap around from 0 to 180
+        assert self.wrapped_hsv
+
         for index in range(len(line_col)):
             bgr = np.uint8([[line_col[index]]])
             hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
 
-            if (hsv[0][0][0] > self.lower_pink[0] and 
-                hsv[0][0][1] > self.lower_pink[1] and 
-                hsv[0][0][2] > self.lower_pink[2] and 
-                hsv[0][0][0] <= self.upper_pink[0] and 
-                hsv[0][0][1] <= self.upper_pink[1] and 
-                hsv[0][0][2] <= self.upper_pink[2]):
+            if ((hsv[0][0][0] < self.lower_puck_hsv[0] or 
+                 hsv[0][0][0] >= self.upper_puck_hsv[0]) and 
+                hsv[0][0][1] > self.lower_puck_hsv[1] and 
+                hsv[0][0][2] > self.lower_puck_hsv[2] and 
+                hsv[0][0][1] <= self.upper_puck_hsv[1] and 
+                hsv[0][0][2] <= self.upper_puck_hsv[2]):
 
                 # A hit!
                 hit = Hit()

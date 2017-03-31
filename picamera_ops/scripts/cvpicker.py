@@ -1,58 +1,59 @@
 #! /usr/bin/env python2
 
-import cv2, time
+import cv2
 import numpy as np
-from picamera import PiCamera
-from picamera.array import PiRGBArray
 
 colors = []
 
-def on_mouse_click (event, x, y, flags, frame):
+def on_mouse_click (event, x, y, flags, hsv):
     if event == cv2.EVENT_LBUTTONUP:
-        colors.append(frame[y,x].tolist())
+        colors.append(hsv[y,x].tolist())
+        print "HSV: " + str(hsv[y, x])
 
-def main():
+def process_image(image, wait):
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    if colors:
+        cv2.putText(image, 'HSV: ' + str(colors[-1]), (10, 50), cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 0), 2)
+    cv2.imshow('image', image)
+    cv2.setMouseCallback('image', on_mouse_click, hsv)
 
-    # Begin processing images
-    with PiCamera() as camera:
-        camera.resolution = (640, 480)
-        camera.ISO = 100
-        camera.sa = 100
-        camera.awb = "flash"
-        camera.co = 100
-        raw_capture = PiRGBArray(camera)
-        time.sleep(5.0)
-        for frame in camera.capture_continuous(raw_capture, \
-                                format="bgr", use_video_port=True):
-            image = frame.array
+    if cv2.waitKey(wait) & 0xFF == ord('q'):
+        return
 
-            hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HLS_FULL)
-            if colors:
-                cv2.putText(hsv, str(colors[-1]), (10, 50), cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 0), 2)
-            cv2.imshow('frame', hsv)
-            cv2.setMouseCallback('frame', on_mouse_click, hsv)
+def post_compute_stuff():
+    if len(colors) == 0:
+        return
+    minh = min(c[0] for c in colors)
+    mins = min(c[1] for c in colors)
+    minv = min(c[2] for c in colors)
+    maxh = max(c[0] for c in colors)
+    maxs = max(c[1] for c in colors)
+    maxv = max(c[2] for c in colors)
 
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+    print "minimums: " + str([minh,mins,minv])
+    print "maximums: " + str([maxh,maxs,maxv])
 
+def process_camera():
+    capture = cv2.VideoCapture(0)
+
+    while True:
+        _, image = capture.read()
+        process_image(image, 1)
+
+    capture.release()
     cv2.destroyAllWindows()
 
-    # avgb = int(sum(c[0] for c in colors) / len(colors))
-    # avgg = int(sum(c[0] for c in colors) / len(colors))
-    # avgr = int(sum(c[0] for c in colors) / len(colors))
-    # print avgb, avgg, avgr
+    post_compute_stuff()
 
-    minb = min(c[0] for c in colors)
-    ming = min(c[1] for c in colors)
-    minr = min(c[2] for c in colors)
-    maxb = max(c[0] for c in colors)
-    maxg = max(c[1] for c in colors)
-    maxr = max(c[2] for c in colors)
-    print minr, ming, minb, maxr, maxg, maxb
-
-    lb = [minb,ming,minr]
-    ub = [maxb,maxg,maxr]
-    print lb, ub
+def process_file(filename):
+    image = cv2.imread(filename)
+    print "Hit 'q' to quit."
+    process_image(image, 0)
+    post_compute_stuff()
 
 if __name__ == "__main__":
-    main()
+
+    #process_camera()
+
+    #process_file('hsv-color-model.png')
+    process_file('raspicam.jpg')

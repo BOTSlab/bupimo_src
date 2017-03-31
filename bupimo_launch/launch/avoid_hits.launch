@@ -6,6 +6,6 @@
 
     <include file="$(find bupimo_launch)/launch/_zumo.launch"/>
 
-    <node pkg="test_behaviours" type="castwander_test.py" name="castwander_test" output="screen"/>
+    <node pkg="test_behaviours" type="avoid_hits.py" name="avoid_hits" output="screen"/>
 
 </launch>

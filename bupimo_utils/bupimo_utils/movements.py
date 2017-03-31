@@ -8,8 +8,8 @@ from bupimo_utils.pucks_and_clusters import get_closest_puck
 from bupimo_utils.obstacles import get_closest_obstacle
 from bupimo_utils.angles import constrain_angle_neg_pos_pi
 
-FORWARD_SPEED = 0.25
-ROT_SPEED = 5.0
+FORWARD_SPEED = 0.15
+ROT_SPEED = 1.0
 
 PI_OVER_2 = math.pi / 2.0
 
@@ -130,73 +130,104 @@ def move_towards_bearing(bearing):
 #    return twist
 #
 
-def wander_while_avoiding_castobs(castobstacle_array_msg):
-    """Random walk while avoiding cast obstacles."""
+#def wander_while_avoiding_castobs(castobstacle_array_msg):
+#    """Random walk while avoiding cast obstacles."""
+#    global min_rho_accum, wander_state, time_in_random
+#
+#    if castobstacle_array_msg == None:
+#        # The message has probably just not been published yet, go forwards
+#        return forwards()
+#
+#    # First get the closest cast obstacle in the front.
+#    closest_obs = None
+#    closest_rho = float('inf')
+#    for obs in castobstacle_array_msg.obstacles:
+#        if obs.theta < PI_OVER_2 and obs.theta > -PI_OVER_2 \
+#            and obs.rho < closest_rho:
+#            closest_obs = obs
+#            closest_rho = obs.rho
+#    assert closest_obs != None
+#    
+#    if len(min_rho_accum) == 0:
+#        # Initialize accumulator array
+#        for obs in castobstacle_array_msg.obstacles:
+#            # Include only front directions
+#            if obs.theta < PI_OVER_2 and obs.theta > -PI_OVER_2:
+#                min_rho_accum[obs.theta] = 0
+#
+#    # Print accumulator
+#    #print(min_rho_accum)
+#
+#    if wander_state == "AVOID":
+#        # Add to accumulator
+#        for obs in castobstacle_array_msg.obstacles:
+#            if obs == closest_obs:
+#                min_rho_accum[obs.theta] += 1
+#
+#    else: # RANDOM state
+#        time_in_random += 1
+#
+#    # State transition
+#    if wander_state == "AVOID" and max(min_rho_accum.values()) == 20:
+#        wander_state = "RANDOM"
+#        time_in_random = 0
+#    elif wander_state == "RANDOM" and time_in_random == 5:
+#        wander_state = "AVOID"
+#        # Zero accumulator dictionary
+#        for obs in castobstacle_array_msg.obstacles:
+#            min_rho_accum[obs.theta] = 0
+#
+#    # Behaviour for state
+#    if wander_state == "AVOID":
+#        #print("AVOID")
+#        closest_theta = constrain_angle_neg_pos_pi(closest_obs.theta)
+#        if closest_rho > 110 or math.fabs(closest_theta) > PI_OVER_2:
+#            # The way is clear.  
+#            return forwards()
+#        elif closest_theta > 0:
+#            return move_towards_bearing(closest_theta - PI_OVER_2)
+#        else:
+#            return move_towards_bearing(closest_theta + PI_OVER_2)
+#
+#    elif wander_state == "RANDOM":
+#        #print("RANDOM")
+#        r = random.randint(0, 6)
+#        if r <= 3:
+#            return backwards()
+#        elif r == 4:
+#            return forwards()
+#        elif r == 5:
+#            return turn(-1)
+#        else:
+#            return turn(1)
+
+def wander_while_avoiding_hits(hit_array_msg):
+    """Random walk while avoiding hits."""
     global min_rho_accum, wander_state, time_in_random
 
-    if castobstacle_array_msg == None:
-        # The message has probably just not been published yet, go forwards
+    # SHOULDN'T HAPPEN, RIGHT?
+    assert hit_array_msg != None
+    #if hit_array_msg == None:
+    #    return forwards()
+
+    # First get the closest hit in the front.
+    closest_hit = None
+    closest_rho = float('inf')
+    for hit in hit_array_msg.hits:
+        if hit.theta < PI_OVER_2 and hit.theta > -PI_OVER_2 \
+            and hit.rho < closest_rho:
+            closest_hit = hit
+            closest_rho = hit.rho
+
+    if closest_hit == None:
         return forwards()
 
-    # First get the closest cast obstacle in the front.
-    closest_obs = None
-    closest_rho = float('inf')
-    for obs in castobstacle_array_msg.obstacles:
-        if obs.theta < PI_OVER_2 and obs.theta > -PI_OVER_2 \
-            and obs.rho < closest_rho:
-            closest_obs = obs
-            closest_rho = obs.rho
-    assert closest_obs != None
-    
-    if len(min_rho_accum) == 0:
-        # Initialize accumulator array
-        for obs in castobstacle_array_msg.obstacles:
-            # Include only front directions
-            if obs.theta < PI_OVER_2 and obs.theta > -PI_OVER_2:
-                min_rho_accum[obs.theta] = 0
+    closest_theta = constrain_angle_neg_pos_pi(closest_hit.theta)
+    if closest_rho > 110:
+        # The way is clear.  
+        return forwards()
+    elif closest_theta > 0:
+        return move_towards_bearing(closest_theta - PI_OVER_2)
+    else:
+        return move_towards_bearing(closest_theta + PI_OVER_2)
 
-    # Print accumulator
-    #print(min_rho_accum)
-
-    if wander_state == "AVOID":
-        # Add to accumulator
-        for obs in castobstacle_array_msg.obstacles:
-            if obs == closest_obs:
-                min_rho_accum[obs.theta] += 1
-
-    else: # RANDOM state
-        time_in_random += 1
-
-    # State transition
-    if wander_state == "AVOID" and max(min_rho_accum.values()) == 20:
-        wander_state = "RANDOM"
-        time_in_random = 0
-    elif wander_state == "RANDOM" and time_in_random == 5:
-        wander_state = "AVOID"
-        # Zero accumulator dictionary
-        for obs in castobstacle_array_msg.obstacles:
-            min_rho_accum[obs.theta] = 0
-
-    # Behaviour for state
-    if wander_state == "AVOID":
-        #print("AVOID")
-        closest_theta = constrain_angle_neg_pos_pi(closest_obs.theta)
-        if closest_rho > 110 or math.fabs(closest_theta) > PI_OVER_2:
-            # The way is clear.  
-            return forwards()
-        elif closest_theta > 0:
-            return move_towards_bearing(closest_theta - PI_OVER_2)
-        else:
-            return move_towards_bearing(closest_theta + PI_OVER_2)
-
-    elif wander_state == "RANDOM":
-        #print("RANDOM")
-        r = random.randint(0, 6)
-        if r <= 3:
-            return backwards()
-        elif r == 4:
-            return forwards()
-        elif r == 5:
-            return turn(-1)
-        else:
-            return turn(1)

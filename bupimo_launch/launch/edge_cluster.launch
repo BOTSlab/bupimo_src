@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+    <include file="$(find bupimo_launch)/launch/_params.launch"/>
+
+    <include file="$(find bupimo_launch)/launch/_picamera_ops.launch"/>
+
+    <include file="$(find bupimo_launch)/launch/_zumo.launch"/>
+
+    <node pkg="test_behaviours" type="edge_cluster.py" name="edge_cluster" output="screen"/>
+
+</launch>

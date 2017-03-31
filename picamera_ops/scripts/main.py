@@ -7,7 +7,7 @@ Interface to sets of functionality based on the PiCamera class.
 import rospy, cv2, time
 import numpy as np
 
-from casthitdetectorop import CastHitDetectorOp
+from hitdetectorop import HitDetectorOp
 #from castedgedetectorop import CastEdgeDetectorOp
 
 from math import atan2, sin, cos, degrees, pi
@@ -24,7 +24,7 @@ if __name__ == '__main__':
 
     ops = []
     #op = CastEdgeDetectorOp()
-    op = CastHitDetectorOp()
+    op = HitDetectorOp()
     ops.append(op)
 
     # Begin processing images
